@@ -1,0 +1,147 @@
+---
+title: "Kinetic growth experiment: example script"
+author: "Vincent Crabbe (adapted from Indra Bervoets & Amber Bernauw)"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding=encoding, knit_root_dir="..", output_dir="../Output")})
+output: 
+  html_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE)
+options(stringsAsFactors=FALSE)
+
+library(readxl)
+library(dplyr)
+library(data.table)
+```
+
+
+
+```{r}
+current_dir <- getwd()
+#print(current_dir)
+data_dir <- file.path(current_dir, "Data")
+output_dir <- file.path(current_dir, "Output")
+
+name <- "example_data"
+```
+Do not forget to change the file name!
+
+
+```{r include=FALSE}
+# Functions.
+
+format_time <- function(df) {
+  #' Convert 'Time' column to numeric hours since the first time point
+  #'
+  #' This function takes a data frame with a POSIXct column named 'Time' and adds a new column 'time_h' that represents the number of hours since the first time point in the 'Time' column.
+  #'
+  #' @param df A data frame containing a POSIXct column named 'Time'.
+  #' @return A data frame with an additional numeric column 'time_h' representing hours since the first time point.
+
+  df$time_h <- as.numeric(difftime(df$Time, df$Time[1], units="hours"))
+  return(df)
+}
+```
+
+# Read in data: OD
+
+```{r}
+ODvalues <- read_xlsx(file.path(data_dir, paste(name, "xlsx", sep=".")), sheet="Plate 1 - Sheet1", range="B30:CU211") # You can slightly read past the actual data, but make sure that you don't include any fluorescence values.
+
+# Remove the bottom rows containing NAs (if present) to strip the data frame to the right size.
+ODvalues <- na.omit(ODvalues)
+
+ODvalues <- format_time(ODvalues)
+
+head(ODvalues)
+```
+Ensure that all data is included in the data frame!
+
+# Read in template design 96-well plate
+```{r}
+template <- read.csv(file.path(data_dir, "template.csv"), header=FALSE, skip=1) # Skip the first row
+
+# Sometimes we don't use the entire plate.
+n_plate_cols <- ncol(template)
+n_plate_rows <- nrow(template)
+n_plate_wells <- n_plate_rows*n_plate_cols
+
+# Reset the column names (purely aesthetic).
+colnames(template) <- seq(1:n_plate_cols)
+```
+
+# Building the big data frame
+One row per well, per timepoint (so in total n*96)
+
+## plate layout: data frame of 96 rows
+```{r}
+# Initialise data frame.
+p <- data.frame(row = rep(seq(1,n_plate_rows),each=n_plate_cols), # 1 1 1 ... 1 2 2 2 2 ...
+                col = rep(seq(1,n_plate_cols),n_plate_rows)) # 1 2 3 4 ... 12 1 2 3 4 ...
+
+# Collect information from template file and update data frame p.
+# For this script, every cell in the template file adheres to following format:
+# strain/concentration_of_the_molecule/name_of_the_applied_molecule/replicate_number
+for(w in 1:n_plate_wells){
+  # Get the matching string from the template (here "row" means plate row).
+  templateString <- template[p[w,"row"], p[w,"col"]] # This string contains the contents of that well
+  tmp <- unlist(strsplit(templateString, '/')) # The string is split at the slashes so we can extract the different fields
+  p[w,"strain"] <- tmp[1]
+  p[w,"mol_ID"] <- tmp[2]
+  p[w,"mol_conc"] <- tmp[3]
+  p[w,"replicate"] <- tmp[4]
+}
+
+p$strain <- as.factor(p$strain)
+p$mol_ID <- as.factor(p$mol_ID)
+p$mol_conc <- as.factor(p$mol_conc)
+p$replicate <- as.factor(p$replicate)
+
+# Reorder levels of 'mol_conc' column according to increasing concentration.
+sorted_labels <- paste(sort(as.numeric(levels(p$mol_conc))))
+p$mol_conc <- factor(p$mol_conc, levels = sorted_labels, ordered=TRUE)
+```
+
+## Data frame adding all information together
+
+```{r}
+n_timepoints = nrow(ODvalues)
+
+data <- data.frame(time = rep(ODvalues$time_h, each=n_plate_wells),
+                   sample = rep(seq(1,n_timepoints), each=n_plate_wells),
+                   well = rep(seq(1,n_plate_wells), n_timepoints),
+                   row = rep(p$row, n_timepoints),
+                   col = rep(p$col, n_timepoints),
+                   strain = rep(p$strain, n_timepoints),
+                   mol_ID = rep(p$mol_ID, n_timepoints),
+                   mol_conc = rep(p$mol_conc, n_timepoints),
+                   replicate = rep(p$replicate, n_timepoints))
+head(data)
+
+# Now we fill the empty fields with the proper values, row by row (data frame row, that is, NOT plate row)
+ODvalues <- select(ODvalues, A1:H12) # Only keep the plate reader measurements
+for(r in 1:nrow(data)){
+  # Where to look in the Tecan Data:
+  x = data[r,"well"]
+  y = data[r,"sample"]
+  
+  # Get the matching OD values and convert from string to the proper type
+  data[r,"OD"] <- as.double(sub(',','.',ODvalues[y, x])) # Replace commas with decimal points
+}
+
+head(data)
+```
+
+# Write and save data file
+
+```{r}
+save(data, name, file=file.path(output_dir, "output1.RData"))
+fwrite(data, file.path(output_dir, paste(name, "processed.csv", sep="_")))
+```
+

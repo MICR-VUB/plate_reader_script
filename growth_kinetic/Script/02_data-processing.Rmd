@@ -1,0 +1,83 @@
+---
+title: "Kinetic growth experiment: example script"
+author: "Vincent Crabbe (adapted from Indra Bervoets & Amber Bernauw)"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding=encoding, knit_root_dir="..", output_dir="../Output")})
+output: 
+  html_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(gridExtra)
+```
+
+
+
+```{r}
+current_dir <- getwd()
+#print(current_dir)
+output_dir <- file.path(current_dir, "Output")
+
+load(file.path(output_dir, "output1.RData"))
+```
+
+# Basic plots
+## All data
+```{r echo=FALSE, fig.height=10, fig.width=14}
+ggplot(data, aes(x = time, y = OD, color = fct_reorder2(strain, time, OD))) +
+          geom_point(cex=0.7) + labs(color = "Strain")
+```
+
+## Only medium
+
+```{r echo=FALSE, fig.height=5, fig.width=14}
+medium <- filter(data, strain=="medium")
+
+ggplot(medium, aes(x = time, y = OD, color = mol_conc, shape = replicate)) +
+          geom_point(cex=1) + labs(color = "3-HP concentration (mM)")
+
+cat("Mean medium OD is", mean(medium$OD))
+```
+The medium does not seem contaminated.
+
+## Without medium
+
+```{r echo=FALSE, fig.height=10, fig.width=14}
+no_medium <- filter(data, strain!="medium")
+
+ggplot(no_medium, aes(x = time, y = OD, color = fct_reorder2(strain, time, OD))) + geom_point(cex=1) + labs(color = "Inoculum")
+
+```
+
+# Check per E.coli strain
+```{r}
+MG1655 <- filter(no_medium, strain == "MG1655")
+Ecoli_W <- filter(no_medium, strain == "W")
+```
+
+## E. coli MG1655
+
+```{r echo=FALSE, fig.height=10, fig.width=14}
+ggplot(MG1655, aes(x = time, y = OD, shape = mol_ID, color = mol_conc)) +
+           geom_point(cex=1)
+```
+
+```{r}
+# Print the conditions where the OD surpassed 0.25 at some point (with other words, where the OD surpassed 0.25)
+MG1655 %>%
+  filter(OD >= .25) %>%
+  distinct(mol_ID, mol_conc)
+```
+
+## E. coli W
+
+```{r echo=FALSE, fig.height=10, fig.width=14}
+ggplot(Ecoli_W, aes(x = time, y = OD, shape = mol_ID, color = mol_conc)) +
+           geom_point(cex=1)
+```
+The E. coli W strain didn't grow.
