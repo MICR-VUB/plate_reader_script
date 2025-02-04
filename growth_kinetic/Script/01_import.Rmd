@@ -39,7 +39,7 @@ Do not forget to change the file name!
 format_time <- function(df) {
   #' Convert 'Time' column to numeric hours since the first time point
   #'
-  #' This function takes a data frame with a POSIXct column named 'Time' and adds a new column 'time_h' that represents the number of hours since the first time point in the 'Time' column.
+  #' This function takes a data frame with a POSIXct column named 'Time' and adds a new column 'time_h' that represents the number of hours since the first time point in the 'Time' column. This facilitates downstream analyses and plotting.
   #'
   #' @param df A data frame containing a POSIXct column named 'Time'.
   #' @return A data frame with an additional numeric column 'time_h' representing hours since the first time point.

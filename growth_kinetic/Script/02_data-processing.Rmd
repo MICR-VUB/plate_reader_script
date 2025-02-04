@@ -40,8 +40,6 @@ medium <- filter(data, strain=="medium")
 
 ggplot(medium, aes(x = time, y = OD, color = mol_conc, shape = replicate)) +
           geom_point(cex=1) + labs(color = "3-HP concentration (mM)")
-
-cat("Mean medium OD is", mean(medium$OD))
 ```
 The medium does not seem contaminated.
 
