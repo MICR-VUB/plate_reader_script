@@ -1,0 +1,211 @@
+---
+title: "Import and parse 6-well plate readings"
+author: "Vincent Crabbe"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding=encoding, knit_root_dir="..", output_dir="../Output")})
+output: 
+  html_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(readxl)
+library(tibble)
+library(dplyr)
+library(data.table)
+```
+
+
+
+```{r, include=FALSE}
+current_dir <- getwd()
+data_dir <- file.path(current_dir, "Data")
+output_dir <- file.path(current_dir, "Output")
+
+name <- "20250114_Ctherm_50vs55"
+```
+Don't forget to change the file name!
+
+
+```{r include=FALSE}
+# Functions
+
+reshape_df <- function(input_df) {
+  #' Reshape a 2x3 dataframe to a 1x6 dataframe
+  #'
+  #' This function takes a 2x3 dataframe containing OD values and reshapes it
+  #'   into a 1x6 dataframe.
+  #'
+  #' @param input_df A 2x3 dataframe containing OD values.
+  #' @return A tibble with two columns: `OD` containing the OD values, and
+  #'   `well` containing the corresponding well numbers.
+  #'
+  #' @examples
+  #' \dontrun{
+  #' input_df <- data.frame(
+  #'   X1 = c(0.1, 0.4),
+  #'   X2 = c(0.2, 0.5),
+  #'   X3 = c(0.3, 0.6)
+  #' )
+  #' reshape_df(input_df)
+  #' }
+  values <- as.vector(t(input_df))
+  output_df <- tibble(OD = values, well = 1:6)
+}
+
+parse_6well_plates <- function(file_path_to_data, num_experiments, timepoints) {
+  #' Parse multiple readings from 6-well plates
+  #'
+  #' This function parses multiple readings from 6-well plates contained in
+  #'   different sheets of one Excel file into a single, long tibble.
+  #'
+  #' @details
+  #' Please keep in mind that the function is currently programmed with
+  #' following constraints:
+  #'
+  #' * The raw data must be contained in cells C28:E29 of an .xlsx file. This
+  #'   must be the case for all sheets.
+  #' * The Excel file is expected to contain multiple sheets, with data from
+  #'   different experiments arranged in an alternating pattern. Specifically,
+  #'   the first set of sheets corresponds to blank measurements for each
+  #'   experiment (e.g., Exp 1 (blank), Exp 2 (blank), Exp 3 (blank)).
+  #'   Subsequent sheets follow the same experiment order but contain data for
+  #'   increasing time points (e.g., Exp 1 (timepoint 1), Exp 2 (timepoint 1),
+  #'   Exp 3 (timepoint 1)), and so on.
+  #' * The blank OD measurements are subtracted from each measurement with
+  #'   corresponding experiment ID and well number.
+  #'
+  #' @param file_path_to_data A character string containing the file path to
+  #'   your raw data .xlsx file.
+  #' @param num_experiments The number of independent plates, each containing a
+  #'   separate experiment. Must equal 1, 2, or 3.
+  #' @param timepoints A vector of timepoints corresponding to the readings.
+  #' @return A long tibble with parsed data from the 6-well plates, including
+  #'   (raw) OD value, well number, experiment ID, time (in hours), and the
+  #'   `ODc` column containing the OD values corrected for the blank.
+  #'
+  #' @examples
+  #' \dontrun{
+  #' file_path <- "path/to/your/data.xlsx"
+  #' num_experiments <- 3
+  #' timepoints <- c(0, 1, 2, 3)
+  #' parse_6well_plates(file_path, num_experiments, timepoints)
+  #' }
+  if (!num_experiments %in% c(1, 2, 3)) {
+    cli::cli_abort(c("{.var num_experiments} must equal 1, 2, or 3.",
+      "x" = "You've tried to set {.var num_experiments} to {num_experiments}."
+    ))
+  }
+
+  sheet_names <- excel_sheets(file_path_to_data)
+  n_datapoints <- length(sheet_names) - num_experiments
+  if (length(timepoints) * num_experiments != n_datapoints) {
+    cli::cli_abort(c(
+      "Inputs must have compatible sizes.",
+      "x" = "{.var timepoints} has length {length(timepoints)}.",
+      "x" = "You have {n_datapoints} data points (excluding blanks).",
+      "i" = "Review your input of {.var num_experiments} and {.var timepoints}."
+    ))
+  }
+
+  long_df <- tibble()
+  for (i in seq_along(sheet_names)) {
+    current_sheet <- sheet_names[i]
+    cat("Parsing sheet", current_sheet, "\n")
+
+    # Read data from sheet i
+    data <- read_xlsx(
+      file_path_to_data,
+      sheet = current_sheet,
+      range = "C28:E29",
+      col_names = FALSE,
+      col_types = "numeric"
+    ) |>
+      reshape_df() |>
+      add_column(sheet = i)
+
+    # Mark experiment ID
+    if ((i - 1) %% num_experiments == 0) {
+      experiment_ID <- 1
+    } else if ((i - 1) %% num_experiments == 1) {
+      experiment_ID <- 2
+    } else {
+      experiment_ID <- 3
+    }
+    data <- add_column(data, experiment = experiment_ID)
+
+    # The first sheet for each experiment contains the blank
+    if (i <= num_experiments) {
+      data <- add_column(data, is_blank = TRUE)
+    } else {
+      data <- add_column(data, is_blank = FALSE)
+    }
+
+    # Add data to a long dataframe
+    long_df <- bind_rows(long_df, data)
+  }
+
+  # Subtract blank medium
+  blank <- long_df |>
+    filter(is_blank == TRUE) |>
+    select(OD_blank = OD, well, experiment)
+  no_blank <- long_df |>
+    filter(is_blank == FALSE) |>
+    left_join(blank, by = c("well", "experiment")) |>
+    mutate(ODc = OD - OD_blank) #|>  # remove the '#' if you want to run the function below
+  # select(!c(is_blank, OD_blank))   # remove the '#' if you want to drop these columns
+
+  # Add time
+  no_blank <- add_column(no_blank, time_h = rep(timepoints, each = 6 * num_experiments))
+}
+```
+
+
+
+```{r, include=FALSE}
+# You can print the documentation of my functions in a pretty formatted fashion
+# using the `docstring` package. See example below.
+# library(docstring)
+# ?parse_6well_plates
+```
+
+# Read in data
+
+```{r}
+output <- parse_6well_plates(
+  file.path(data_dir, paste(name, "xlsx", sep = ".")), # Normally, you don't have to change this
+  num_experiments = 2,
+  timepoints = 0:12 # A vector that contains the timepoints for each measurement. This is manually determined by the user based on their experiment.
+)
+```
+
+# Add a more interpretable identifier
+
+```{r}
+output <- output |>
+  mutate(ID = case_when(
+    experiment == 1 & well == 1 ~ "ID_1_1",
+    experiment == 1 & well == 2 ~ "ID_1_2",
+    experiment == 1 & well == 3 ~ "ID_1_3",
+    experiment == 1 & well == 4 ~ "ID_1_4",
+    experiment == 1 & well == 5 ~ "ID_1_5",
+    experiment == 1 & well == 6 ~ "ID_1_6",
+    experiment == 2 & well == 1 ~ "ID_2_1",
+    experiment == 2 & well == 2 ~ "ID_2_2",
+    experiment == 2 & well == 3 ~ "ID_2_3",
+    experiment == 2 & well == 4 ~ "ID_2_4",
+    experiment == 2 & well == 5 ~ "ID_2_5",
+    experiment == 2 & well == 6 ~ "ID_2_6",
+    TRUE ~ "Unknown" # Else statement
+  ))
+```
+
+# Export
+
+```{r}
+save(output, file = file.path(output_dir, "01_import.RData"))
+fwrite(output, file.path(output_dir, paste(name, "processed.csv", sep = "_")))
+```

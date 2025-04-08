@@ -1,0 +1,36 @@
+---
+title: "Data visualisation example"
+author: "Vincent Crabbe"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding=encoding, knit_root_dir="..", output_dir="../Output")})
+output: 
+  html_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+```
+
+
+
+```{r, include=FALSE}
+current_dir <- getwd()
+output_dir <- file.path(current_dir, "Output")
+
+load(file.path(output_dir, "01_import.RData"))
+```
+
+# Experiment 1
+
+```{r}
+output |>
+  filter(experiment == 1) |>
+  ggplot(aes(x = time_h, y = ODc, color = ID)) +
+  geom_point(cex = 1) +
+  geom_line()
+```
