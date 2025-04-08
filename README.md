@@ -3,7 +3,8 @@ This repository contains multiple folders, each of which contains a different ve
 
 ## Available Versions
 
-- **growth_kinetic**: Script to parse data from a simple growth experiment in the presence of ligands of choice.
+- **growth_6-well-plate_point**: Script to parse data from an Excel file containing multiple point measurements of growth experiments in 6-well plates.
+- **growth_kinetic**: Script to parse data from a simple growth experiment in a 96-well plate with supplementation of ligands of choice.
 
 ## Getting Started
 
