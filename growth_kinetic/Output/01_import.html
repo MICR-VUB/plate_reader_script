@@ -11,6 +11,7 @@
 
 <meta name="author" content="Vincent Crabbe (adapted from Indra Bervoets &amp; Amber Bernauw)" />
 
+<meta name="date" content="2025-10-04" />
 
 <title>Kinetic growth experiment: example script</title>
 
@@ -353,44 +354,48 @@ display: none;
 script</h1>
 <h4 class="author">Vincent Crabbe (adapted from Indra Bervoets &amp;
 Amber Bernauw)</h4>
-<h4 class="date">21/01/2025</h4>
+<h4 class="date">10/04/2025</h4>
 
 </div>
 
 <div id="TOC">
 <ul>
-<li><a href="#read-in-data-od" id="toc-read-in-data-od">Read in data:
-OD</a></li>
+<li><a href="#read-in-data" id="toc-read-in-data">Read in data</a></li>
 <li><a href="#read-in-template-design-96-well-plate" id="toc-read-in-template-design-96-well-plate">Read in template design
 96-well plate</a></li>
 <li><a href="#building-the-big-data-frame" id="toc-building-the-big-data-frame">Building the big data frame</a>
 <ul>
-<li><a href="#plate-layout-data-frame-of-96-rows" id="toc-plate-layout-data-frame-of-96-rows">plate layout: data frame of
+<li><a href="#plate-layout-data-frame-of-96-rows" id="toc-plate-layout-data-frame-of-96-rows">Plate layout: data frame of
 96 rows</a></li>
-<li><a href="#data-frame-adding-all-information-together" id="toc-data-frame-adding-all-information-together">Data frame adding
-all information together</a></li>
+<li><a href="#adding-all-the-information-together" id="toc-adding-all-the-information-together">Adding all the information
+together</a></li>
 </ul></li>
 <li><a href="#write-and-save-data-file" id="toc-write-and-save-data-file">Write and save data file</a></li>
 </ul>
 </div>
 
 <pre class="r"><code>current_dir &lt;- getwd()
-#print(current_dir)
+# print(current_dir)
 data_dir &lt;- file.path(current_dir, &quot;Data&quot;)
 output_dir &lt;- file.path(current_dir, &quot;Output&quot;)
 
-name &lt;- &quot;example_data&quot;</code></pre>
+file_name &lt;- &quot;example_data&quot;</code></pre>
 <p>Do not forget to change the file name!</p>
-<div id="read-in-data-od" class="section level1">
-<h1>Read in data: OD</h1>
-<pre class="r"><code>ODvalues &lt;- read_xlsx(file.path(data_dir, paste(name, &quot;xlsx&quot;, sep=&quot;.&quot;)), sheet=&quot;Plate 1 - Sheet1&quot;, range=&quot;B30:CU211&quot;) # You can slightly read past the actual data, but make sure that you don&#39;t include any fluorescence values.
+<div id="read-in-data" class="section level1">
+<h1>Read in data</h1>
+<pre class="r"><code>OD_values &lt;- read_xlsx(
+  file.path(data_dir, paste(file_name, &quot;xlsx&quot;, sep = &quot;.&quot;)),
+  sheet = &quot;Plate 1 - Sheet1&quot;,
+  range = &quot;B30:CU211&quot; # You can read past the actual data, but make sure that you don&#39;t include any fluorescence values
+  )
 
-# Remove the bottom rows containing NAs (if present) to strip the data frame to the right size.
-ODvalues &lt;- na.omit(ODvalues)
+# Remove the bottom rows containing NAs (if present) to strip the data frame to the right size
+OD_values &lt;- na.omit(OD_values)
 
-ODvalues &lt;- format_time(ODvalues)
+OD_values &lt;- format_time(OD_values)
+n_timepoints &lt;- nrow(OD_values)
 
-head(ODvalues)</code></pre>
+head(OD_values)</code></pre>
 <pre><code>## # A tibble: 6 × 99
 ##   Time                `T° OD600:600`    A1    A2    A3    A4    A5    A6    A7
 ##   &lt;dttm&gt;                       &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
@@ -411,36 +416,48 @@ head(ODvalues)</code></pre>
 </div>
 <div id="read-in-template-design-96-well-plate" class="section level1">
 <h1>Read in template design 96-well plate</h1>
-<pre class="r"><code>template &lt;- read.csv(file.path(data_dir, &quot;template.csv&quot;), header=FALSE, skip=1) # Skip the first row
+<pre class="r"><code>template &lt;- read.csv(
+  file.path(data_dir, &quot;template.csv&quot;),
+  header = FALSE,
+  skip = 1
+  )
 
-# Sometimes we don&#39;t use the entire plate.
+# These variables will save your butt if you didn&#39;t fill the entire plate
 n_plate_cols &lt;- ncol(template)
 n_plate_rows &lt;- nrow(template)
-n_plate_wells &lt;- n_plate_rows*n_plate_cols
+n_plate_wells &lt;- n_plate_rows * n_plate_cols
 
-# Reset the column names (purely aesthetic).
+# Reset the column names (purely aesthetic)
 colnames(template) &lt;- seq(1:n_plate_cols)</code></pre>
 </div>
 <div id="building-the-big-data-frame" class="section level1">
 <h1>Building the big data frame</h1>
-<p>One row per well, per timepoint (so in total n*96)</p>
+<p><code>data</code> contains the data in long format: one row per well,
+per time point. That is, 11808 rows in total.</p>
 <div id="plate-layout-data-frame-of-96-rows" class="section level2">
-<h2>plate layout: data frame of 96 rows</h2>
-<pre class="r"><code># Initialise data frame.
-p &lt;- data.frame(row = rep(seq(1,n_plate_rows),each=n_plate_cols), # 1 1 1 ... 1 2 2 2 2 ...
-                col = rep(seq(1,n_plate_cols),n_plate_rows)) # 1 2 3 4 ... 12 1 2 3 4 ...
+<h2>Plate layout: data frame of 96 rows</h2>
+<p>We start by constructing a small data frame <code>p</code> containing
+the plate layout, consisting of 96 rows. This information is collected
+from the ‘template.csv’ file in the Data folder.</p>
+<p><strong>Every cell of the template file should adhere to following
+format:</strong>
+strain/concentration_of_the_molecule/name_of_the_applied_molecule/replicate_number</p>
+<pre class="r"><code># Initialise data frame
+p &lt;- data.frame(
+  row = rep(seq(1, n_plate_rows), each = n_plate_cols), # 1 1 1 ... 1 2 2 2 2 ...
+  col = rep(seq(1, n_plate_cols), n_plate_rows)         # 1 2 3 4 ... 12 1 2 3 4 ...
+)
 
-# Collect information from template file and update data frame p.
-# For this script, every cell in the template file adheres to following format:
-# strain/concentration_of_the_molecule/name_of_the_applied_molecule/replicate_number
-for(w in 1:n_plate_wells){
+for (w in 1:n_plate_wells) {
   # Get the matching string from the template (here &quot;row&quot; means plate row).
-  templateString &lt;- template[p[w,&quot;row&quot;], p[w,&quot;col&quot;]] # This string contains the contents of that well
-  tmp &lt;- unlist(strsplit(templateString, &#39;/&#39;)) # The string is split at the slashes so we can extract the different fields
-  p[w,&quot;strain&quot;] &lt;- tmp[1]
-  p[w,&quot;mol_ID&quot;] &lt;- tmp[2]
-  p[w,&quot;mol_conc&quot;] &lt;- tmp[3]
-  p[w,&quot;replicate&quot;] &lt;- tmp[4]
+  template_string &lt;- template[p[w, &quot;row&quot;], p[w, &quot;col&quot;]]
+  
+  # The string is split at the slashes so we can extract the different fields
+  tmp &lt;- unlist(strsplit(template_string, &quot;/&quot;))
+  p[w, &quot;strain&quot;] &lt;- tmp[1]
+  p[w, &quot;mol_ID&quot;] &lt;- tmp[2]
+  p[w, &quot;mol_conc&quot;] &lt;- tmp[3]
+  p[w, &quot;replicate&quot;] &lt;- tmp[4]
 }
 
 p$strain &lt;- as.factor(p$strain)
@@ -448,23 +465,25 @@ p$mol_ID &lt;- as.factor(p$mol_ID)
 p$mol_conc &lt;- as.factor(p$mol_conc)
 p$replicate &lt;- as.factor(p$replicate)
 
-# Reorder levels of &#39;mol_conc&#39; column according to increasing concentration.
+# Reorder levels of `mol_conc` column according to increasing concentration
 sorted_labels &lt;- paste(sort(as.numeric(levels(p$mol_conc))))
-p$mol_conc &lt;- factor(p$mol_conc, levels = sorted_labels, ordered=TRUE)</code></pre>
+p$mol_conc &lt;- factor(p$mol_conc, levels = sorted_labels, ordered = TRUE)</code></pre>
 </div>
-<div id="data-frame-adding-all-information-together" class="section level2">
-<h2>Data frame adding all information together</h2>
-<pre class="r"><code>n_timepoints = nrow(ODvalues)
-
-data &lt;- data.frame(time = rep(ODvalues$time_h, each=n_plate_wells),
-                   sample = rep(seq(1,n_timepoints), each=n_plate_wells),
-                   well = rep(seq(1,n_plate_wells), n_timepoints),
-                   row = rep(p$row, n_timepoints),
-                   col = rep(p$col, n_timepoints),
-                   strain = rep(p$strain, n_timepoints),
-                   mol_ID = rep(p$mol_ID, n_timepoints),
-                   mol_conc = rep(p$mol_conc, n_timepoints),
-                   replicate = rep(p$replicate, n_timepoints))
+<div id="adding-all-the-information-together" class="section level2">
+<h2>Adding all the information together</h2>
+<p>Now, we loop over <code>data</code> row by row and add the
+corresponding data from <code>OD_values</code> to it.</p>
+<pre class="r"><code>data &lt;- data.frame(
+  time = rep(OD_values$time_h, each = n_plate_wells),
+  sample = rep(seq(1, n_timepoints), each = n_plate_wells),
+  well = rep(seq(1, n_plate_wells), n_timepoints),
+  row = rep(p$row, n_timepoints),
+  col = rep(p$col, n_timepoints),
+  strain = rep(p$strain, n_timepoints),
+  mol_ID = rep(p$mol_ID, n_timepoints),
+  mol_conc = rep(p$mol_conc, n_timepoints),
+  replicate = rep(p$replicate, n_timepoints)
+)
 head(data)</code></pre>
 <pre><code>##   time sample well row col strain mol_ID mol_conc replicate
 ## 1    0      1    1   1   1      W   None        0         1
@@ -473,15 +492,15 @@ head(data)</code></pre>
 ## 4    0      1    4   1   4      W   3-HP      100         1
 ## 5    0      1    5   1   5      W   3-HP       40         1
 ## 6    0      1    6   1   6      W   3-HP       20         1</code></pre>
-<pre class="r"><code># Now we fill the empty fields with the proper values, row by row (data frame row, that is, NOT plate row)
-ODvalues &lt;- select(ODvalues, A1:H12) # Only keep the plate reader measurements
-for(r in 1:nrow(data)){
-  # Where to look in the Tecan Data:
-  x = data[r,&quot;well&quot;]
-  y = data[r,&quot;sample&quot;]
-  
-  # Get the matching OD values and convert from string to the proper type
-  data[r,&quot;OD&quot;] &lt;- as.double(sub(&#39;,&#39;,&#39;.&#39;,ODvalues[y, x])) # Replace commas with decimal points
+<pre class="r"><code># Loop over plate reader measurements only. Modify the range if you didn&#39;t completely fill the plate!!
+OD_values &lt;- select(OD_values, A1:H12)
+for (r in 1:nrow(data)) {
+  # Where to look in the plate reader data:
+  x &lt;- data[r, &quot;well&quot;]
+  y &lt;- data[r, &quot;sample&quot;]
+
+  # Add the matching OD values to `data`
+  data[r, &quot;OD&quot;] &lt;- as.double(sub(&quot;,&quot;, &quot;.&quot;, OD_values[y, x])) # Replace commas with decimal points
 }
 
 head(data)</code></pre>
@@ -496,8 +515,8 @@ head(data)</code></pre>
 </div>
 <div id="write-and-save-data-file" class="section level1">
 <h1>Write and save data file</h1>
-<pre class="r"><code>save(data, name, file=file.path(output_dir, &quot;output1.RData&quot;))
-fwrite(data, file.path(output_dir, paste(name, &quot;processed.csv&quot;, sep=&quot;_&quot;)))</code></pre>
+<pre class="r"><code>save(data, file_name, file = file.path(output_dir, &quot;01_import.RData&quot;))
+fwrite(data, file.path(output_dir, paste(file_name, &quot;processed.csv&quot;, sep = &quot;_&quot;)))</code></pre>
 </div>
 
 
