@@ -1,6 +1,6 @@
 # Import and parse 6-well plate readings
 
-This folder contains an R script for importing and parsing multiple readings from 6-well plates contained in different sheets of an Excel file. The script is designed to handle data from multiple experiments involving blank medium measurements and corrects the OD values accordingly.
+This folder contains an R script for importing and parsing multiple readings from 6-well plates contained in different sheets of an Excel file. The script is designed to handle data from multiple experiments involving blank medium measurements and correct the OD values accordingly.
 
 ## Table of Contents
 
