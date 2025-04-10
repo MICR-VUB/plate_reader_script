@@ -27,7 +27,7 @@ output_dir <- file.path(current_dir, "Output")
 
 file_name <- "example_data"
 ```
-Do not forget to change the file name!
+Don't forget to change the file name!
 
 
 ```{r include=FALSE}
