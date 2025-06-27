@@ -25,7 +25,7 @@ current_dir <- getwd()
 data_dir <- file.path(current_dir, "Data")
 output_dir <- file.path(current_dir, "Output")
 
-name <- "20250114_Ctherm_50vs55"
+file_name <- "20250114_Ctherm_50vs55"
 ```
 Don't forget to change the file name!
 
@@ -33,70 +33,68 @@ Don't forget to change the file name!
 ```{r include=FALSE}
 # Functions
 
+#' Reshape a 2x3 data frame to a 1x6 data frame
+#'
+#' This function takes a 2x3 data frame containing OD values and reshapes it
+#'   into a 1x6 data frame.
+#'
+#' @param input_df A 2x3 data frame containing OD values.
+#'
+#' @return A tibble with 6 rows.
+#'
+#' @examples
+#' if (requireNamespace("tibble", quietly = TRUE)){
+#' input_df <- data.frame(
+#'   X1 = c(0.1, 0.4),
+#'   X2 = c(0.2, 0.5),
+#'   X3 = c(0.3, 0.6)
+#' )
+#' reshape_df(input_df)
+#' }
 reshape_df <- function(input_df) {
-  #' Reshape a 2x3 dataframe to a 1x6 dataframe
-  #'
-  #' This function takes a 2x3 dataframe containing OD values and reshapes it
-  #'   into a 1x6 dataframe.
-  #'
-  #' @param input_df A 2x3 dataframe containing OD values.
-  #' @return A tibble with two columns: `OD` containing the OD values, and
-  #'   `well` containing the corresponding well numbers.
-  #'
-  #' @examples
-  #' \dontrun{
-  #' input_df <- data.frame(
-  #'   X1 = c(0.1, 0.4),
-  #'   X2 = c(0.2, 0.5),
-  #'   X3 = c(0.3, 0.6)
-  #' )
-  #' reshape_df(input_df)
-  #' }
   values <- as.vector(t(input_df))
   output_df <- tibble(OD = values, well = 1:6)
 }
 
+#' Parse readings from 6-well plates
+#'
+#' This function parses multiple readings from 6-well plates contained in
+#'   different sheets of one Excel file into a single, long tibble.
+#'
+#' @details
+#' Please keep in mind that the function is currently programmed with
+#' following constraints:
+#'
+#' * The raw data must be contained in cells C28:E29 of an .xlsx file. This
+#'   must be the case for all sheets.
+#' * The Excel file is expected to contain multiple sheets, with data from
+#'   different experiments arranged in an alternating pattern. Specifically,
+#'   the first set of sheets corresponds to blank measurements for each
+#'   experiment (e.g., Exp 1 (blank), Exp 2 (blank), Exp 3 (blank)).
+#'   Subsequent sheets follow the same experiment order but contain data for
+#'   increasing time points (e.g., Exp 1 (time point 1), Exp 2 (time point 1),
+#'   Exp 3 (time point 1)), and so on.
+#' * The blank OD measurements are subtracted from each measurement with
+#'   corresponding experiment ID and well number.
+#'
+#' @param file_path_to_data A character string.
+#' @param num_experiments The number of independent plates, each containing a
+#'   separate experiment. Must equal 1, 2, or 3.
+#' @param timepoints A vector of time points corresponding to the readings.
+#'
+#' @return A tibble.
+#'
+#' @examples
+#' \dontrun{
+#' file_path <- "path/to/your/data.xlsx"
+#' num_experiments <- 3
+#' timepoints <- c(0, 1, 2, 3)
+#' parse_6well_plates(file_path, num_experiments, timepoints)
+#' }
 parse_6well_plates <- function(file_path_to_data, num_experiments, timepoints) {
-  #' Parse multiple readings from 6-well plates
-  #'
-  #' This function parses multiple readings from 6-well plates contained in
-  #'   different sheets of one Excel file into a single, long tibble.
-  #'
-  #' @details
-  #' Please keep in mind that the function is currently programmed with
-  #' following constraints:
-  #'
-  #' * The raw data must be contained in cells C28:E29 of an .xlsx file. This
-  #'   must be the case for all sheets.
-  #' * The Excel file is expected to contain multiple sheets, with data from
-  #'   different experiments arranged in an alternating pattern. Specifically,
-  #'   the first set of sheets corresponds to blank measurements for each
-  #'   experiment (e.g., Exp 1 (blank), Exp 2 (blank), Exp 3 (blank)).
-  #'   Subsequent sheets follow the same experiment order but contain data for
-  #'   increasing time points (e.g., Exp 1 (timepoint 1), Exp 2 (timepoint 1),
-  #'   Exp 3 (timepoint 1)), and so on.
-  #' * The blank OD measurements are subtracted from each measurement with
-  #'   corresponding experiment ID and well number.
-  #'
-  #' @param file_path_to_data A character string containing the file path to
-  #'   your raw data .xlsx file.
-  #' @param num_experiments The number of independent plates, each containing a
-  #'   separate experiment. Must equal 1, 2, or 3.
-  #' @param timepoints A vector of timepoints corresponding to the readings.
-  #' @return A long tibble with parsed data from the 6-well plates, including
-  #'   (raw) OD value, well number, experiment ID, time (in hours), and the
-  #'   `ODc` column containing the OD values corrected for the blank.
-  #'
-  #' @examples
-  #' \dontrun{
-  #' file_path <- "path/to/your/data.xlsx"
-  #' num_experiments <- 3
-  #' timepoints <- c(0, 1, 2, 3)
-  #' parse_6well_plates(file_path, num_experiments, timepoints)
-  #' }
   if (!num_experiments %in% c(1, 2, 3)) {
-    cli::cli_abort(c("{.var num_experiments} must equal 1, 2, or 3.",
-      "x" = "You've tried to set {.var num_experiments} to {num_experiments}."
+    cli::cli_abort(c("{.arg num_experiments} must equal 1, 2, or 3.",
+      "x" = "You've tried to set {.arg num_experiments} to {num_experiments}."
     ))
   }
 
@@ -105,9 +103,9 @@ parse_6well_plates <- function(file_path_to_data, num_experiments, timepoints) {
   if (length(timepoints) * num_experiments != n_datapoints) {
     cli::cli_abort(c(
       "Inputs must have compatible sizes.",
-      "x" = "{.var timepoints} has length {length(timepoints)}.",
+      "x" = "{.arg timepoints} has length {length(timepoints)}.",
       "x" = "You have {n_datapoints} data points (excluding blanks).",
-      "i" = "Review your input of {.var num_experiments} and {.var timepoints}."
+      "i" = "Review your input of {.arg num_experiments} and {.arg timepoints}."
     ))
   }
 
@@ -144,7 +142,7 @@ parse_6well_plates <- function(file_path_to_data, num_experiments, timepoints) {
       data <- add_column(data, is_blank = FALSE)
     }
 
-    # Add data to a long dataframe
+    # Add data to a long data frame
     long_df <- bind_rows(long_df, data)
   }
 
@@ -176,9 +174,9 @@ parse_6well_plates <- function(file_path_to_data, num_experiments, timepoints) {
 
 ```{r}
 output <- parse_6well_plates(
-  file.path(data_dir, paste(name, "xlsx", sep = ".")), # Normally, you don't have to change this
+  file.path(data_dir, paste(file_name, "xlsx", sep = ".")), # Normally, you don't have to change this
   num_experiments = 2,
-  timepoints = 0:12 # A vector that contains the timepoints for each measurement. This is manually determined by the user based on their experiment.
+  timepoints = 0:12 # A vector that contains the time points for each measurement. This is manually determined by the user based on their experiment.
 )
 ```
 
@@ -207,5 +205,5 @@ output <- output |>
 
 ```{r}
 save(output, file = file.path(output_dir, "01_import.RData"))
-fwrite(output, file.path(output_dir, paste(name, "processed.csv", sep = "_")))
+fwrite(output, file.path(output_dir, paste(file_name, "processed.csv", sep = "_")))
 ```

@@ -1,6 +1,6 @@
 # Analyse growth experiment
 
-This repository contains an R-based workflow for processing and visualising data from a simple growth experiment in a 96-well plate with supplementation of ligands of choice.
+This folder contains an R-based workflow for processing and visualising data from a simple growth experiment in a 96-well plate with supplementation of ligands of choice.
 
 ## Table of Contents
 

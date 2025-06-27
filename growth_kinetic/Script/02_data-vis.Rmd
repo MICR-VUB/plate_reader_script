@@ -1,5 +1,5 @@
 ---
-title: "Kinetic growth experiment: example script"
+title: "Data visualisation example"
 author: "Vincent Crabbe (adapted from Indra Bervoets & Amber Bernauw)"
 date: "`r format(Sys.Date(), '%d/%m/%Y')`"
 knit: (function(inputFile, encoding) {

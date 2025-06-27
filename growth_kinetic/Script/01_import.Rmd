@@ -1,5 +1,5 @@
 ---
-title: "Kinetic growth experiment: example script"
+title: "Import and parse data"
 author: "Vincent Crabbe (adapted from Indra Bervoets & Amber Bernauw)"
 date: "`r format(Sys.Date(), '%d/%m/%Y')`"
 knit: (function(inputFile, encoding) {
@@ -33,22 +33,67 @@ Don't forget to change the file name!
 ```{r include=FALSE}
 # Functions
 
-format_time <- function(df) {
-  #' Add hours since first time point
-  #'
-  #' Adds a new column `time_h` to a data frame, representing the number of
-  #'   hours passed since the first value in the `Time` column.
-  #'
-  #' @param df A data frame with a POSIXct column named `Time`.
-  #' 
-  #' @return A data frame with an additional numeric column `time_h`.
-  #'
-  #' @examples
-  #' df <- data.frame(Time = as.POSIXct(c("2024-01-01 08:00", "2024-01-01 10:30")))
-  #' format_time(df)
-  #' 
-  df$time_h <- as.numeric(difftime(df$Time, df$Time[1], units = "hours"))
-  df
+#' Add hours since first time point
+#'
+#' Adds a new column `time_h` to a data frame, representing the number of
+#'   hours passed since the first value in the `Time` column.
+#'
+#' @param data A data frame with a POSIXct column named `Time`.
+#'
+#' @return A data frame.
+#'
+#' @examples
+#' data <- data.frame(Time = as.POSIXct(c("2024-01-01 08:00", "2024-01-01 10:30")))
+#' format_time(data)
+format_time <- function(data) {
+  data$time_h <- as.numeric(difftime(data$Time, data$Time[1], units = "hours"))
+  data
+}
+
+#' Reorder factor levels in a column based on numeric order
+#'
+#' Reorders the levels of a factor column in a data frame based on increasing
+#'   numeric value. The column must already be a factor with numeric-like levels
+#'   (e.g., "1", "10", "100"). Returns a modified copy of the input data frame
+#'   with the reordered factor.
+#'
+#' @param data A data frame.
+#' @param column_name A string giving the name of the factor column to reorder.
+#'
+#' @return A data frame.
+#'
+#' @examples
+#' df <- data.frame(
+#'   id = 1:4,
+#'   dose = factor(c("10", "2", "100", "1"))
+#' )
+#' df <- reorder_factor_column(df, "dose")
+#' levels(df$dose)
+reorder_factor_column <- function(data, column_name) {
+  if (!column_name %in% names(data)) {
+    cli::cli_abort(c(
+      "{.arg column_name} must be the name of a column in {.arg data}.",
+      "x" = "You've tried to set {column_name} as {.arg column_name}."
+    ))
+  }
+  
+  factor_column <- data[[column_name]]
+  if (!is.factor(factor_column)) {
+    cli::cli_abort(c(
+      "{.arg column_name} must be a factor.",
+      "x" = "You've tried to set {column_name} as {.arg column_name}.",
+      "x" = "{column_name} is a {class(column_name)}."
+    ))
+  }
+  
+  sorted_levels <- sort(as.numeric(levels(factor_column)))
+  data[[column_name]] <- factor(
+    factor_column,
+    levels = as.character(sorted_levels),
+    ordered = TRUE
+    )
+  
+  data
 }
 ```
 
@@ -59,11 +104,9 @@ OD_values <- read_xlsx(
   file.path(data_dir, paste(file_name, "xlsx", sep = ".")),
   sheet = "Plate 1 - Sheet1",
   range = "B30:CU211" # You can read past the actual data, but make sure that you don't include any fluorescence values
-  )
+)
 
-# Remove the bottom rows containing NAs (if present) to strip the data frame to the right size
-OD_values <- na.omit(OD_values)
-
+OD_values <- na.omit(OD_values) # Remove the bottom rows containing NAs (if present) to strip the data frame to the right size
 OD_values <- format_time(OD_values)
 n_timepoints <- nrow(OD_values)
 
@@ -78,7 +121,7 @@ template <- read.csv(
   file.path(data_dir, "template.csv"),
   header = FALSE,
   skip = 1
-  )
+)
 
 # These variables will save your butt if you didn't fill the entire plate
 n_plate_cols <- ncol(template)
@@ -104,13 +147,13 @@ strain/concentration_of_the_molecule/name_of_the_applied_molecule/replicate_numb
 # Initialise data frame
 p <- data.frame(
   row = rep(seq(1, n_plate_rows), each = n_plate_cols), # 1 1 1 ... 1 2 2 2 2 ...
-  col = rep(seq(1, n_plate_cols), n_plate_rows)         # 1 2 3 4 ... 12 1 2 3 4 ...
+  col = rep(seq(1, n_plate_cols), n_plate_rows) # 1 2 3 4 ... 12 1 2 3 4 ...
 )
 
 for (w in 1:n_plate_wells) {
-  # Get the matching string from the template (here "row" means plate row).
+  # Get the matching string from the template (here "row" means plate row)
   template_string <- template[p[w, "row"], p[w, "col"]]
-  
+
   # The string is split at the slashes so we can extract the different fields
   tmp <- unlist(strsplit(template_string, "/"))
   p[w, "strain"] <- tmp[1]
@@ -124,14 +167,13 @@ p$mol_ID <- as.factor(p$mol_ID)
 p$mol_conc <- as.factor(p$mol_conc)
 p$replicate <- as.factor(p$replicate)
 
-# Reorder levels of `mol_conc` column according to increasing concentration
-sorted_labels <- paste(sort(as.numeric(levels(p$mol_conc))))
-p$mol_conc <- factor(p$mol_conc, levels = sorted_labels, ordered = TRUE)
+p <- reorder_factor_column(p, "mol_conc")
 ```
 
 ## Adding all the information together
 Now, we loop over `data` row by row and add the corresponding data from `OD_values` to it.
 ```{r}
+# Transfer metadata from `p`
 data <- data.frame(
   time = rep(OD_values$time_h, each = n_plate_wells),
   sample = rep(seq(1, n_timepoints), each = n_plate_wells),
@@ -145,8 +187,9 @@ data <- data.frame(
 )
 head(data)
 
-# Loop over plate reader measurements only. Modify the range if you didn't completely fill the plate!!
+# Drop columns that don't contain actual measurements. Modify this range if you didn't use all 96 wells!!
 OD_values <- select(OD_values, A1:H12)
+
 for (r in 1:nrow(data)) {
   # Where to look in the plate reader data:
   x <- data[r, "well"]
