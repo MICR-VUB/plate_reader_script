@@ -1,0 +1,97 @@
+---
+title: "Data-analysis in stationary phase"
+author: "Vincent Crabbe (adapted from Indra Bervoets & Amber Bernauw)"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding=encoding, knit_root_dir="..", output_dir="../Output")})
+output: 
+  html_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggthemes)
+```
+
+
+
+```{r}
+current_dir <- getwd()
+# print(current_dir)
+output_dir <- file.path(current_dir, "Output")
+
+load(file.path(output_dir, "01_import.RData"))
+load(file.path(output_dir, "subtract_medium.RData"))
+```
+
+# Data cleaning
+For each experiment, modify this code cell in order to omit outliers correctly.
+```{r}
+corrected_data <- data |>
+  filter(!(strain == "BS01" & inducer_conc == 0 & effector_conc == 0 & replicate == "3")) |> # remove outliers
+  select(time, strain:FL) |>
+  subtract_medium() |>
+  filter(!(strain == "medium"))
+```
+
+# Stationary phase (3 time points ~ 1 h)
+Select the correct time points for stationary phase analysis.
+```{r}
+timepoint <- 1
+
+stat_phase_reps <- corrected_data |>
+  filter(time >= timepoint - .5 & time <= timepoint + .5) |>
+  group_by(strain, inducer_ID, inducer_conc, effector_ID, effector_conc, replicate) |>
+  summarise(RFUc = mean(RFUc)) |> # compute mean of 3 time points
+  ungroup()
+
+rm(corrected_data)
+```
+
+# Determining mean + SE
+
+```{r}
+stat_phase_means <- stat_phase_reps |>
+  group_by(strain, inducer_ID, inducer_conc, effector_ID, effector_conc) |>
+  summarise(
+    mean_RFUc = mean(RFUc),
+    SD_RFUc = sd(RFUc),
+    SE_RFUc = SD_RFUc / sqrt(n())
+  ) |>
+  ungroup()
+```
+
+# Plots
+
+```{r echo=FALSE, fig.height=6, fig.width=18}
+green_palette_cb <- c("#d9f0d3", "#a6dba0", "#5aae61", "#1b7837", "#00441b")
+
+ggplot(stat_phase_means, aes(effector_conc, mean_RFUc, fill = inducer_conc)) +
+  geom_col(position = "dodge") +
+  geom_errorbar(aes(ymin = mean_RFUc - SE_RFUc, ymax = mean_RFUc + SE_RFUc),
+    width = .2,
+    position = position_dodge(.9)
+  ) +
+  scale_fill_manual(
+    values = green_palette_cb,
+    name = "Naringenin (mg/L)"
+  ) +
+  labs(
+    x = expression("[" * beta * "-alanine] (mM)"),
+    y = expression(FL / OD[600] * phantom(x) * (RFU))
+  )
+
+
+ggplot(stat_phase_reps, aes(effector_conc, RFUc, fill = replicate)) +
+  geom_col(position = position_dodge2(preserve = "total")) +
+  facet_grid(~inducer_conc, scales = "free_x", space = "free_x") +
+  scale_fill_ptol() + # color palette
+  labs(
+    x = expression("[" * beta * "-alanine] (mM)"),
+    y = expression(FL / OD[600] * phantom(x) * (RFU)),
+    fill = "Replicate"
+  )
+```

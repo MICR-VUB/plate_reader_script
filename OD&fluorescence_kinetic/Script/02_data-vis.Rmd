@@ -1,0 +1,255 @@
+---
+title: "Data visualisation"
+author: "Vincent Crabbe (adapted from Indra Bervoets & Amber Bernauw)"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding=encoding, knit_root_dir="..", output_dir="../Output")})
+output: 
+  html_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(patchwork)
+```
+
+
+
+```{r}
+current_dir <- getwd()
+# print(current_dir)
+output_dir <- file.path(current_dir, "Output")
+
+load(file.path(output_dir, "01_import.RData"))
+```
+
+
+
+```{r include=FALSE}
+# Functions
+
+#' Subtract background signal from medium control
+#'
+#' This function subtracts the mean OD and fluorescence (FL) values
+#'   of the "medium" control from each sample at corresponding time points.
+#'   It also calculates the relative fluorescence units for the uncorrected
+#'   OD and FL (`RFU` column) and the corrected OD and FL (`RFUc` column).
+#'
+#' @param data A data frame containing at least the columns `strain`, `time`,
+#'   `OD`, and `FL`.
+#'
+#' @return A data frame.
+#'
+#' @examples
+#' \dontrun{
+#' corrected_data <- subtract_medium(data)
+#' }
+subtract_medium <- function(data) {
+  med <- data |>
+    filter(strain == "medium") |>
+    group_by(time) |>
+    summarise(
+      OD_med_t = mean(OD, na.rm = TRUE),
+      FL_med_t = mean(FL, na.rm = TRUE)
+    ) |>
+    ungroup()
+
+  data |>
+    left_join(med, by = "time") |>
+    mutate(
+      ODc = OD - OD_med_t,
+      FLc = FL - FL_med_t,
+      RFU = FL / OD,
+      RFUc = FLc / ODc
+    ) |>
+    select(-OD_med_t, -FL_med_t)
+}
+
+#' Create a ggplot for a specific response variable
+#'
+#' This function generates a scatter plot of the specified response variable
+#'   against time, colour-coded by a categorical variable
+#'
+#' @param data A data frame containing the columns `time`, the response
+#'   variable, and the categorical variable specified by `cat_var`.
+#' @param yvar A string specifying the name of the response variable to plot
+#'   (e.g. "ODc", "FLc", or "RFU").
+#' @param cat_var A string specifying the name of the categorical
+#'   variable to colour-code the data by.
+#'
+#' @return A ggplot object.
+#'
+#' @examples
+#' \dontrun{
+#' make_plot(data, "ODc")
+#' }
+make_plot <- function(data, yvar, cat_var) {
+  if (!yvar %in% names(data)) {
+    cli::cli_abort(c(
+      "{.arg yvar} must be the name of a column in {.arg data}.",
+      "x" = "You've tried to set {yvar} as {.arg yvar}."
+    ))
+  }
+  if (!cat_var %in% names(data)) {
+    cli::cli_abort(c(
+      "{.arg cat_var} must be the name of a column in {.arg data}.",
+      "x" = "You've tried to set {cat_var} as {.arg cat_var}."
+    ))
+  }
+  
+  ggplot(data, aes(x = time, y = .data[[yvar]], color = .data[[cat_var]])) +
+    geom_point(cex = 1)
+}
+
+#' Plot multiple replicates separately with three response variables each
+#'
+#' This function filters the data per replicate and creates three plots
+#'   (`ODc`, `FLc`, and `RFU` vs. time, colour-coded by `cat_var`) for each,
+#'   arranged in a grid. The function loops over the specified number of
+#'   replicates and displays the plots with a title.
+#'
+#' @param data A data frame containing at least the columns `replicate`, `time`,
+#'   `ODc`, `FLc`, `RFU`, and the categorical variable specified by `cat_var`.
+#' @param num_replicates An integer specifying the number of replicates to plot.
+#' @param cat_var A string specifying the name of the categorical
+#'   variable to colour-code the data by.
+#'
+#' @return This function is called for its side effects: it displays plots for
+#'   each replicate. It also returns `data` invisibly.
+#'
+#' @examples
+#' \dontrun{
+#' plot_replicates_separately(data, 4)
+#' }
+plot_replicates_separately <- function(data, num_replicates, cat_var) {
+  for (i in 1:num_replicates) {
+    data_loop <- filter(data, replicate == i)
+    plots <- lapply(
+      c("ODc", "FLc", "RFU"),
+      make_plot,
+      data = data_loop,
+      cat_var = cat_var
+      )
+    grid <- wrap_plots(plots, ncol = 2) +
+      plot_annotation(
+        title = paste("Replicate", i),
+        theme = theme(plot.title = element_text(size = 14, face = "bold"))
+      )
+    print(grid)
+  }
+  invisible(data)
+}
+```
+
+
+
+```{r, include=FALSE}
+# Data manipulation and cleaning
+corrected_data <- subtract_medium(data)
+medium <- filter(corrected_data, strain == "medium")
+no_medium <- filter(corrected_data, strain != "medium")
+```
+
+# Overview plots
+## All data
+```{r echo=FALSE, fig.height=10, fig.width=14}
+p1 <- ggplot(corrected_data, aes(x = time, y = OD, color = fct_reorder2(strain, time, RFU))) +
+  geom_point(cex = 0.7) +
+  labs(color = "Inoculum")
+p2 <- ggplot(corrected_data, aes(x = time, y = FL, color = fct_reorder2(strain, time, RFU))) +
+  geom_point(cex = 0.7) +
+  labs(color = "Inoculum")
+p3 <- ggplot(corrected_data, aes(x = time, y = RFU, color = fct_reorder2(strain, time, RFU))) +
+  geom_point(cex = 0.7) +
+  labs(color = "Inoculum")
+
+wrap_plots(p1, p2, p3, ncol = 2)
+```
+
+## Only medium
+
+```{r echo=FALSE, fig.height=10, fig.width=14}
+top_plots <- lapply(
+  c("OD", "FL"),
+  make_plot,
+  data = medium,
+  cat_var = "inducer_conc"
+  )
+
+# Check whether the mean OD and FL of the medium are elevated:
+med <- medium |>
+  group_by(time) |>
+  summarise(
+    OD_med_t = mean(OD, na.rm = TRUE),
+    FL_med_t = mean(FL, na.rm = TRUE)
+  ) |>
+  ungroup()
+plot_3 <- ggplot(med, aes(x = time, y = OD_med_t)) +
+  geom_point(cex = 1) +
+  labs(y = "Average OD")
+plot_4 <- ggplot(med, aes(x = time, y = FL_med_t)) +
+  geom_point(cex = 1) +
+  labs(y = "Average FL")
+
+wrap_plots(top_plots[[1]], top_plots[[2]], plot_3, plot_4)
+```
+4/16 medium wells are severely contaminated. Average medium OD and FL are elevated, so all ODc and FLc values will be affected. Analyse data with caution.
+
+## Without medium
+
+```{r echo=FALSE, fig.height=10, fig.width=14}
+plots <- lapply(
+  c("ODc", "FLc", "RFU"),
+  make_plot,
+  data = no_medium,
+  cat_var = "inducer_conc"
+  )
+wrap_plots(plots, nrow = 2)
+```
+
+# Detailed plots
+## 0 mM β-alanine
+
+```{r echo=FALSE, fig.height=10, fig.width=14}
+bs01_0 <- filter(no_medium, effector_conc == 0)
+
+plots <- lapply(
+  c("OD", "FL", "RFU"),
+  make_plot,
+  data = bs01_0,
+  cat_var = "inducer_conc"
+  )
+wrap_plots(plots, nrow = 2)
+
+plot_replicates_separately(bs01_0, num_replicates = 4, cat_var = "inducer_conc")
+```
+
+## 10 mM β-alanine
+
+```{r echo=FALSE, fig.height=10, fig.width=14}
+bs01_10 <- filter(no_medium, effector_conc == 10)
+
+plots <- lapply(
+  c("OD", "FL", "RFU"),
+  make_plot,
+  data = bs01_0,
+  cat_var = "inducer_conc"
+  )
+wrap_plots(plots, nrow = 2)
+
+plot_replicates_separately(
+  bs01_10,
+  num_replicates = 4,
+  cat_var = "inducer_conc"
+  )
+```
+
+
+
+```{r}
+save(subtract_medium, file = file.path(output_dir, "subtract_medium.RData"))
+```
+

@@ -1,0 +1,256 @@
+---
+title: "Import and parse data"
+author: "Vincent Crabbe (adapted from Indra Bervoets & Amber Bernauw)"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding=encoding, knit_root_dir="..", output_dir="../Output")})
+output: 
+  html_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(readxl)
+library(dplyr)
+library(data.table)
+```
+
+
+
+```{r}
+current_dir <- getwd()
+# print(current_dir)
+data_dir <- file.path(current_dir, "Data")
+output_dir <- file.path(current_dir, "Output")
+
+file_name <- "example_data"
+```
+Don't forget to change the file name!
+
+
+```{r include=FALSE}
+# Functions
+
+#' Add hours since first time point
+#'
+#' Adds a new column `time_h` to a data frame, representing the number of
+#'   hours passed since the first value in the `Time` column.
+#'
+#' @param data A data frame with a POSIXct column named `Time`.
+#'
+#' @return A data frame with an additional numeric column `time_h`.
+#'
+#' @examples
+#' data <- data.frame(Time = as.POSIXct(c("2024-01-01 08:00", "2024-01-01 10:30")))
+#' format_time(data)
+#'
+format_time <- function(data) {
+  data$time_h <- as.numeric(difftime(data$Time, data$Time[1], units = "hours"))
+  data
+}
+
+#' Reorder factor levels in a column based on numeric order
+#'
+#' Reorders the levels of a factor column in a data frame based on increasing
+#'   numeric value. The column must already be a factor with numeric-like levels
+#'   (e.g., "1", "10", "100"). Returns a modified copy of the input data frame
+#'   with the reordered factor.
+#'
+#' @param data A data frame.
+#' @param column_name A string giving the name of the factor column to reorder.
+#'
+#' @return A data frame.
+#'
+#' @examples
+#' df <- data.frame(
+#'   id = 1:4,
+#'   dose = factor(c("10", "2", "100", "1"))
+#' )
+#' df <- reorder_factor_column(df, "dose")
+#' levels(df$dose)
+reorder_factor_column <- function(data, column_name) {
+  if (!column_name %in% names(data)) {
+    cli::cli_abort(c(
+      "{.arg column_name} must be the name of a column in {.arg data}.",
+      "x" = "You've tried to set {column_name} as {.arg column_name}."
+    ))
+  }
+  
+  factor_column <- data[[column_name]]
+  if (!is.factor(factor_column)) {
+    cli::cli_abort(c(
+      "{.arg column_name} must be a factor.",
+      "x" = "You've tried to set {column_name} as {.arg column_name}.",
+      "x" = "{column_name} is a {class(column_name)}."
+    ))
+  }
+  
+  sorted_levels <- sort(as.numeric(levels(factor_column)))
+  data[[column_name]] <- factor(
+    factor_column,
+    levels = as.character(sorted_levels),
+    ordered = TRUE
+    )
+  
+  data
+}
+```
+
+# Read in data
+## OD
+
+```{r}
+OD_values <- read_xlsx(
+  file.path(data_dir, paste("raw_data", "xlsx", sep = ".")),
+  sheet = "Plate 1 - Sheet1",
+  range = "B39:CU220" # You can read past the actual data, but make sure that you don't include any fluorescence values
+)
+
+
+OD_values <- na.omit(OD_values) # Remove the bottom rows containing NAs (if present) to strip the data frame to the right size
+OD_values <- format_time(OD_values)
+n_timepoints <- nrow(OD_values)
+
+head(OD_values)
+```
+Ensure that all data is included in the dataframe!
+
+## Fluorescence
+
+```{r}
+FL_values <- read_xlsx(
+  file.path(data_dir, paste("raw_data", "xlsx", sep = ".")),
+  sheet = "Plate 1 - Sheet1",
+  range = "B224:CU405" # You can read past the actual data, but make sure that you don't include the table below
+)
+
+FL_values <- na.omit(FL_values) # Remove the bottom rows containing NAs (if present) to strip the data frame to the right size
+FL_values <- format_time(FL_values)
+
+head(FL_values)
+```
+Ensure that all data is included in the data frame!
+
+# Read in template design 96-well plate
+
+```{r}
+template <- read.csv(
+  file.path(data_dir, "template.csv"),
+  header = FALSE,
+  skip = 1 # removes the first row
+)
+template[1] <- NULL # removes the first column
+
+# These variables will save your butt if you didn't fill the entire plate
+n_plate_cols <- ncol(template)
+n_plate_rows <- nrow(template)
+n_plate_wells <- n_plate_rows * n_plate_cols
+
+# Reset the column names (purely aesthetic)
+colnames(template) <- seq(1:n_plate_cols)
+```
+
+# Building the big data frame
+`data` contains the data in long format: one row per well, per time point.
+That is, `r n_timepoints * n_plate_wells` rows in total.
+
+## Plate layout: data frame of 96 rows
+We start by constructing a small data frame `p` containing the plate layout, consisting of `r n_plate_wells` rows.
+This information is collected from the 'template.csv' file in the Data folder.
+
+**Every cell of the template file should adhere to following format:**
+strain/inducer_concentration/inducer_name/effector_concentration/effector_name/replicate
+
+Here, *inducer* refers to the molecule that we have added to the biosensor strains to induce the expression of the transcription factor gene.
+*Effector* refers to the molecule that we have added to exert a regulatory effect on that transcription factor (cfr. the ligand of the transcription factor under study).
+
+```{r}
+# Initialise data frame
+p <- data.frame(
+  row = rep(seq(1, n_plate_rows), each = n_plate_cols), # 1 1 1 ... 1 2 2 2 2 ...
+  col = rep(seq(1, n_plate_cols), times = n_plate_rows) # 1 2 3 4 ... 12 1 2 3 4 ...
+)
+
+for (w in 1:n_plate_wells) {
+  # Get the matching string from the template (here "row" means plate row)
+  template_string <- template[p[w, "row"], p[w, "col"]]
+
+  # The string is split at the slashes so we can extract the different fields
+  tmp <- unlist(strsplit(template_string, "/"))
+  p[w, "strain"] <- tmp[1]
+  p[w, "inducer_conc"] <- tmp[2]
+  p[w, "inducer_ID"] <- tmp[3]
+  p[w, "effector_conc"] <- tmp[4]
+  p[w, "effector_ID"] <- tmp[5]
+  p[w, "replicate"] <- tmp[6]
+}
+
+p$strain <- as.factor(p$strain)
+p$inducer_conc <- as.factor(p$inducer_conc)
+p$inducer_ID <- as.factor(p$inducer_ID)
+p$effector_conc <- as.factor(p$effector_conc)
+p$effector_ID <- as.factor(p$effector_ID)
+p$replicate <- as.factor(p$replicate)
+
+p <- reorder_factor_column(p, "inducer_conc")
+p <- reorder_factor_column(p, "effector_conc")
+```
+
+## Adding all the information together
+Now, we loop over `data` row by row and add the corresponding data from `OD_values` to it.
+```{r}
+# Transfer metadata from `p` to `data`
+data <- data.frame(
+  time = rep(OD_values$time_h, each = n_plate_wells),
+  sample = rep(seq(1, n_timepoints), each = n_plate_wells),
+  well = rep(seq(1, n_plate_wells), times = n_timepoints),
+  row = rep(p$row, times = n_timepoints),
+  col = rep(p$col, times = n_timepoints),
+  strain = rep(p$strain, times = n_timepoints),
+  inducer_ID = rep(p$inducer_ID, times = n_timepoints),
+  inducer_conc = rep(p$inducer_conc, times = n_timepoints),
+  effector_ID = rep(p$effector_ID, times = n_timepoints),
+  effector_conc = rep(p$effector_conc, times = n_timepoints),
+  replicate = rep(p$replicate, times = n_timepoints)
+)
+head(data)
+
+# Drop columns that don't contain actual measurements.
+# OD_values <- select(OD_values, A1:H12) # If you used all 96 wells, use this line instead
+OD_values <- select(
+  OD_values,
+  !ends_with(as.character(8:12)),
+  -"Time", -"T° OD600:600", -"time_h"
+)
+
+# FL_values <- select(FL_values, A1:H12) # If you used all 96 wells, use this line instead
+FL_values <- select(
+  FL_values,
+  !ends_with(as.character(8:12)),
+  -"Time", -"T° mKate2:588,633", -"time_h"
+)
+
+for (r in 1:nrow(data)) {
+  # Where to look in the plate reader data:
+  x <- data[r, "well"]
+  y <- data[r, "sample"]
+
+  # Add the matching OD and fluorescence values to `data`
+  data[r, "OD"] <- as.double(sub(",", ".", OD_values[y, x])) # Replace commas with decimal points
+  data[r, "FL"] <- as.integer(FL_values[y, x])
+}
+head(data)
+
+# Remove rows with oversaturation
+print(which(is.na(data), arr.ind = TRUE))
+data <- na.omit(data)
+```
+
+# Write and save data file
+
+```{r}
+save(data, file_name, file = file.path(output_dir, "01_import.RData"))
+fwrite(data, file.path(output_dir, paste(file_name, "processed.csv", sep = "_")))
+```
