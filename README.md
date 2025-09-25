@@ -3,6 +3,7 @@ This repository contains multiple folders, each of which contains a different ve
 
 ## Available Versions
 
+- **OD&fluorescence_kinetic**: Script to parse data from an experiment where OD and fluorescence where measured in a 96-well plate with supplementation of an inducer and/or an effector molecule.
 - **growth_6-well-plate_point**: Script to parse data from an Excel file containing multiple point measurements of growth experiments in 6-well plates.
 - **growth_kinetic**: Script to parse data from a simple growth experiment in a 96-well plate with supplementation of ligands of choice.
 
