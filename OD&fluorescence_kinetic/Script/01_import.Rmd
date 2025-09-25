@@ -199,7 +199,7 @@ p <- reorder_factor_column(p, "effector_conc")
 ```
 
 ## Adding all the information together
-Now, we loop over `data` row by row and add the corresponding data from `OD_values` to it.
+Now, we loop over `data` row by row and add the corresponding data from `OD_values` and `FL_values` to it.
 ```{r}
 # Transfer metadata from `p` to `data`
 data <- data.frame(
