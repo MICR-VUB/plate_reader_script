@@ -38,7 +38,7 @@ This script was tested using R version 4.4.3 and following package versions:
 - `ggplot2 (3.5.2)`
 - `forcats (1.0.0)`
 - `patchwork` (1.3.0)
-- `ggthetmes` (5.1.0)
+- `ggthemes` (5.1.0)
 
 ## Usage
 
