@@ -14,6 +14,7 @@ editor_options:
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(patchwork)
+source("../helpers.R")
 ```
 
 
@@ -25,125 +26,6 @@ output_dir <- file.path(current_dir, "Output")
 
 load(file.path(output_dir, "01_import.RData"))
 ```
-
-
-
-```{r include=FALSE}
-# Functions
-
-#' Subtract background signal from medium control
-#'
-#' This function subtracts the mean OD and fluorescence (FL) values
-#'   of the "medium" control from each sample at corresponding time points.
-#'   It also calculates the relative fluorescence units for the uncorrected
-#'   OD and FL (`RFU` column) and the corrected OD and FL (`RFUc` column).
-#'
-#' @param data A data frame containing at least the columns `strain`, `time`,
-#'   `OD`, and `FL`.
-#'
-#' @return A data frame.
-#'
-#' @examples
-#' \dontrun{
-#' corrected_data <- subtract_medium(data)
-#' }
-subtract_medium <- function(data) {
-  med <- data |>
-    filter(strain == "medium") |>
-    group_by(time) |>
-    summarise(
-      OD_med_t = mean(OD, na.rm = TRUE),
-      FL_med_t = mean(FL, na.rm = TRUE)
-    ) |>
-    ungroup()
-
-  data |>
-    left_join(med, by = "time") |>
-    mutate(
-      ODc = OD - OD_med_t,
-      FLc = FL - FL_med_t,
-      RFU = FL / OD,
-      RFUc = FLc / ODc
-    ) |>
-    select(-OD_med_t, -FL_med_t)
-}
-
-#' Create a ggplot for a specific response variable
-#'
-#' This function generates a scatter plot of the specified response variable
-#'   against time, colour-coded by a categorical variable
-#'
-#' @param data A data frame containing the columns `time`, the response
-#'   variable, and the categorical variable specified by `cat_var`.
-#' @param yvar A string specifying the name of the response variable to plot
-#'   (e.g. "ODc", "FLc", or "RFU").
-#' @param cat_var A string specifying the name of the categorical
-#'   variable to colour-code the data by.
-#'
-#' @return A ggplot object.
-#'
-#' @examples
-#' \dontrun{
-#' make_plot(data, "ODc")
-#' }
-make_plot <- function(data, yvar, cat_var) {
-  if (!yvar %in% names(data)) {
-    cli::cli_abort(c(
-      "{.arg yvar} must be the name of a column in {.arg data}.",
-      "x" = "You've tried to set {yvar} as {.arg yvar}."
-    ))
-  }
-  if (!cat_var %in% names(data)) {
-    cli::cli_abort(c(
-      "{.arg cat_var} must be the name of a column in {.arg data}.",
-      "x" = "You've tried to set {cat_var} as {.arg cat_var}."
-    ))
-  }
-  
-  ggplot(data, aes(x = time, y = .data[[yvar]], color = .data[[cat_var]])) +
-    geom_point(cex = 1)
-}
-
-#' Plot multiple replicates separately with three response variables each
-#'
-#' This function filters the data per replicate and creates three plots
-#'   (`ODc`, `FLc`, and `RFU` vs. time, colour-coded by `cat_var`) for each,
-#'   arranged in a grid. The function loops over the specified number of
-#'   replicates and displays the plots with a title.
-#'
-#' @param data A data frame containing at least the columns `replicate`, `time`,
-#'   `ODc`, `FLc`, `RFU`, and the categorical variable specified by `cat_var`.
-#' @param num_replicates An integer specifying the number of replicates to plot.
-#' @param cat_var A string specifying the name of the categorical
-#'   variable to colour-code the data by.
-#'
-#' @return This function is called for its side effects: it displays plots for
-#'   each replicate. It also returns `data` invisibly.
-#'
-#' @examples
-#' \dontrun{
-#' plot_replicates_separately(data, 4)
-#' }
-plot_replicates_separately <- function(data, num_replicates, cat_var) {
-  for (i in 1:num_replicates) {
-    data_loop <- filter(data, replicate == i)
-    plots <- lapply(
-      c("ODc", "FLc", "RFU"),
-      make_plot,
-      data = data_loop,
-      cat_var = cat_var
-      )
-    grid <- wrap_plots(plots, ncol = 2) +
-      plot_annotation(
-        title = paste("Replicate", i),
-        theme = theme(plot.title = element_text(size = 14, face = "bold"))
-      )
-    print(grid)
-  }
-  invisible(data)
-}
-```
-
 
 
 ```{r, include=FALSE}

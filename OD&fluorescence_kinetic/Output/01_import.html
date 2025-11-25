@@ -352,7 +352,7 @@ display: none;
 <h1 class="title toc-ignore">Import and parse data</h1>
 <h4 class="author">Vincent Crabbe (adapted from Indra Bervoets &amp;
 Amber Bernauw)</h4>
-<h4 class="date">27/06/2025</h4>
+<h4 class="date">25/11/2025</h4>
 
 </div>
 
@@ -515,7 +515,8 @@ p &lt;- reorder_factor_column(p, &quot;effector_conc&quot;)</code></pre>
 <div id="adding-all-the-information-together" class="section level2">
 <h2>Adding all the information together</h2>
 <p>Now, we loop over <code>data</code> row by row and add the
-corresponding data from <code>OD_values</code> to it.</p>
+corresponding data from <code>OD_values</code> and
+<code>FL_values</code> to it.</p>
 <pre class="r"><code># Transfer metadata from `p` to `data`
 data &lt;- data.frame(
   time = rep(OD_values$time_h, each = n_plate_wells),

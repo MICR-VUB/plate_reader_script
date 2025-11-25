@@ -15,8 +15,8 @@ editor_options:
 library(readxl)
 library(dplyr)
 library(data.table)
+source("../helpers.R")
 ```
-
 
 
 ```{r}
@@ -28,75 +28,6 @@ output_dir <- file.path(current_dir, "Output")
 file_name <- "example_data"
 ```
 Don't forget to change the file name!
-
-
-```{r include=FALSE}
-# Functions
-
-#' Add hours since first time point
-#'
-#' Adds a new column `time_h` to a data frame, representing the number of
-#'   hours passed since the first value in the `Time` column.
-#'
-#' @param data A data frame with a POSIXct column named `Time`.
-#'
-#' @return A data frame with an additional numeric column `time_h`.
-#'
-#' @examples
-#' data <- data.frame(Time = as.POSIXct(c("2024-01-01 08:00", "2024-01-01 10:30")))
-#' format_time(data)
-#'
-format_time <- function(data) {
-  data$time_h <- as.numeric(difftime(data$Time, data$Time[1], units = "hours"))
-  data
-}
-
-#' Reorder factor levels in a column based on numeric order
-#'
-#' Reorders the levels of a factor column in a data frame based on increasing
-#'   numeric value. The column must already be a factor with numeric-like levels
-#'   (e.g., "1", "10", "100"). Returns a modified copy of the input data frame
-#'   with the reordered factor.
-#'
-#' @param data A data frame.
-#' @param column_name A string giving the name of the factor column to reorder.
-#'
-#' @return A data frame.
-#'
-#' @examples
-#' df <- data.frame(
-#'   id = 1:4,
-#'   dose = factor(c("10", "2", "100", "1"))
-#' )
-#' df <- reorder_factor_column(df, "dose")
-#' levels(df$dose)
-reorder_factor_column <- function(data, column_name) {
-  if (!column_name %in% names(data)) {
-    cli::cli_abort(c(
-      "{.arg column_name} must be the name of a column in {.arg data}.",
-      "x" = "You've tried to set {column_name} as {.arg column_name}."
-    ))
-  }
-  
-  factor_column <- data[[column_name]]
-  if (!is.factor(factor_column)) {
-    cli::cli_abort(c(
-      "{.arg column_name} must be a factor.",
-      "x" = "You've tried to set {column_name} as {.arg column_name}.",
-      "x" = "{column_name} is a {class(column_name)}."
-    ))
-  }
-  
-  sorted_levels <- sort(as.numeric(levels(factor_column)))
-  data[[column_name]] <- factor(
-    factor_column,
-    levels = as.character(sorted_levels),
-    ordered = TRUE
-    )
-  
-  data
-}
-```
 
 # Read in data
 ## OD
