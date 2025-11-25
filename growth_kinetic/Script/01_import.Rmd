@@ -55,6 +55,7 @@ template <- read.csv(
   header = FALSE,
   skip = 1
 )
+template[1] <- NULL
 
 # These variables will save your butt if you didn't fill the entire plate
 n_plate_cols <- ncol(template)

@@ -11,9 +11,8 @@
 
 <meta name="author" content="Vincent Crabbe (adapted from Indra Bervoets &amp; Amber Bernauw)" />
 
-<meta name="date" content="2025-10-04" />
 
-<title>Kinetic growth experiment: example script</title>
+<title>Import and parse data</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -350,11 +349,10 @@ display: none;
 
 
 
-<h1 class="title toc-ignore">Kinetic growth experiment: example
-script</h1>
+<h1 class="title toc-ignore">Import and parse data</h1>
 <h4 class="author">Vincent Crabbe (adapted from Indra Bervoets &amp;
 Amber Bernauw)</h4>
-<h4 class="date">10/04/2025</h4>
+<h4 class="date">25/11/2025</h4>
 
 </div>
 
@@ -380,18 +378,16 @@ data_dir &lt;- file.path(current_dir, &quot;Data&quot;)
 output_dir &lt;- file.path(current_dir, &quot;Output&quot;)
 
 file_name &lt;- &quot;example_data&quot;</code></pre>
-<p>Do not forget to change the file name!</p>
+<p>Don’t forget to change the file name!</p>
 <div id="read-in-data" class="section level1">
 <h1>Read in data</h1>
 <pre class="r"><code>OD_values &lt;- read_xlsx(
   file.path(data_dir, paste(file_name, &quot;xlsx&quot;, sep = &quot;.&quot;)),
   sheet = &quot;Plate 1 - Sheet1&quot;,
   range = &quot;B30:CU211&quot; # You can read past the actual data, but make sure that you don&#39;t include any fluorescence values
-  )
+)
 
-# Remove the bottom rows containing NAs (if present) to strip the data frame to the right size
-OD_values &lt;- na.omit(OD_values)
-
+OD_values &lt;- na.omit(OD_values) # Remove the bottom rows containing NAs (if present) to strip the data frame to the right size
 OD_values &lt;- format_time(OD_values)
 n_timepoints &lt;- nrow(OD_values)
 
@@ -420,7 +416,8 @@ head(OD_values)</code></pre>
   file.path(data_dir, &quot;template.csv&quot;),
   header = FALSE,
   skip = 1
-  )
+)
+template[1] &lt;- NULL
 
 # These variables will save your butt if you didn&#39;t fill the entire plate
 n_plate_cols &lt;- ncol(template)
@@ -445,13 +442,13 @@ strain/concentration_of_the_molecule/name_of_the_applied_molecule/replicate_numb
 <pre class="r"><code># Initialise data frame
 p &lt;- data.frame(
   row = rep(seq(1, n_plate_rows), each = n_plate_cols), # 1 1 1 ... 1 2 2 2 2 ...
-  col = rep(seq(1, n_plate_cols), n_plate_rows)         # 1 2 3 4 ... 12 1 2 3 4 ...
+  col = rep(seq(1, n_plate_cols), n_plate_rows) # 1 2 3 4 ... 12 1 2 3 4 ...
 )
 
 for (w in 1:n_plate_wells) {
-  # Get the matching string from the template (here &quot;row&quot; means plate row).
+  # Get the matching string from the template (here &quot;row&quot; means plate row)
   template_string &lt;- template[p[w, &quot;row&quot;], p[w, &quot;col&quot;]]
-  
+
   # The string is split at the slashes so we can extract the different fields
   tmp &lt;- unlist(strsplit(template_string, &quot;/&quot;))
   p[w, &quot;strain&quot;] &lt;- tmp[1]
@@ -465,15 +462,14 @@ p$mol_ID &lt;- as.factor(p$mol_ID)
 p$mol_conc &lt;- as.factor(p$mol_conc)
 p$replicate &lt;- as.factor(p$replicate)
 
-# Reorder levels of `mol_conc` column according to increasing concentration
-sorted_labels &lt;- paste(sort(as.numeric(levels(p$mol_conc))))
-p$mol_conc &lt;- factor(p$mol_conc, levels = sorted_labels, ordered = TRUE)</code></pre>
+p &lt;- reorder_factor_column(p, &quot;mol_conc&quot;)</code></pre>
 </div>
 <div id="adding-all-the-information-together" class="section level2">
 <h2>Adding all the information together</h2>
 <p>Now, we loop over <code>data</code> row by row and add the
 corresponding data from <code>OD_values</code> to it.</p>
-<pre class="r"><code>data &lt;- data.frame(
+<pre class="r"><code># Transfer metadata from `p`
+data &lt;- data.frame(
   time = rep(OD_values$time_h, each = n_plate_wells),
   sample = rep(seq(1, n_timepoints), each = n_plate_wells),
   well = rep(seq(1, n_plate_wells), n_timepoints),
@@ -492,8 +488,9 @@ head(data)</code></pre>
 ## 4    0      1    4   1   4      W   3-HP      100         1
 ## 5    0      1    5   1   5      W   3-HP       40         1
 ## 6    0      1    6   1   6      W   3-HP       20         1</code></pre>
-<pre class="r"><code># Loop over plate reader measurements only. Modify the range if you didn&#39;t completely fill the plate!!
+<pre class="r"><code># Drop columns that don&#39;t contain actual measurements. Modify this range if you didn&#39;t use all 96 wells!!
 OD_values &lt;- select(OD_values, A1:H12)
+
 for (r in 1:nrow(data)) {
   # Where to look in the plate reader data:
   x &lt;- data[r, &quot;well&quot;]
