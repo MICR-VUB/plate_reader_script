@@ -14,6 +14,7 @@ editor_options:
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(ggthemes)
+source("../helpers.R")
 ```
 
 
@@ -24,7 +25,6 @@ current_dir <- getwd()
 output_dir <- file.path(current_dir, "Output")
 
 load(file.path(output_dir, "01_import.RData"))
-load(file.path(output_dir, "subtract_medium.RData"))
 ```
 
 # Data cleaning
@@ -95,3 +95,10 @@ ggplot(stat_phase_reps, aes(effector_conc, RFUc, fill = replicate)) +
     fill = "Replicate"
   )
 ```
+
+# Check for outliers
+
+```{r}
+unique_max_or_min(stat_phase_reps)
+```
+

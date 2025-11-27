@@ -129,9 +129,3 @@ plot_replicates_separately(
   )
 ```
 
-
-
-```{r}
-save(subtract_medium, file = file.path(output_dir, "subtract_medium.RData"))
-```
-

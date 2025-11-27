@@ -176,3 +176,90 @@ plot_replicates_separately <- function(data, num_replicates, cat_var) {
   }
   invisible(data)
 }
+
+#' Identify replicates with unique maximum or minimum RFUc values
+#'
+#' For each value of \code{inducer_conc} and \code{effector_conc}, this function
+#' determines which replicate has the highest and lowest \code{RFUc}.
+#' A replicate scores a "maximum" count for a combination of \code{inducer_conc}
+#' and \code{effector_conc} values if it has the unique highest \code{RFUc}
+#' among all replicates. Similarly, it scores a "minimum" count if it has the
+#' unique lowest value. Ties are ignored. The input data must contain only one
+#' value for \code{strain}, \code{inducer_ID} and \code{effector_ID}.
+#'
+#' @param data A data frame containing at least the columns
+#'   \code{strain}, \code{inducer_ID}, \code{inducer_conc}, \code{effector_ID},
+#'   \code{effector_conc}, \code{replicate} and \code{RFUc}.
+#'   \code{replicate} is coerced to a factor if not already one.
+#'
+#' @return A tibble with one row for \code{"maximum"} and one for
+#'   \code{"minimum"}, and one column per replicate. Each cell gives the
+#'   number groups for which that replicate was the unique maximum or minimum.
+#'
+#' @examples
+#' \dontrun{
+#' library(dplyr)
+#'
+#' df <- tibble(
+#'   strain         = "WT",
+#'   inducer_ID     = "Ara",
+#'   effector_ID    = "As",
+#'   inducer_conc   = c(0, 0, 10, 10, 50, 50),
+#'   effector_conc  = c(0, 0, 0, 0, 0, 0),
+#'   replicate      = c(1, 2, 1, 2, 1, 2),
+#'   RFUc           = c(100, 120, 200, 180, 250, 300)
+#' )
+#'
+#' unique_max_or_min(df)
+#' }
+#' @export
+unique_max_or_min <- function(data) {
+  # Check required columns.
+  required <- c("strain", "inducer_ID", "inducer_conc", "effector_ID", "effector_conc", "replicate", "RFUc")
+  missing_cols <- setdiff(required, names(data))
+  if (length(missing_cols) > 0) {
+    stop("Missing required column(s): ", paste(missing_cols, collapse = ", "))
+  }
+  
+  # Check that strain, inducer_ID and effector_ID are constant.
+  if (n_distinct(data$strain) != 1) stop("`strain` must contain exactly one value.")
+  if (n_distinct(data$inducer_ID) != 1) stop("`inducer_ID` must contain exactly one value.")
+  if (n_distinct(data$effector_ID) != 1) stop("`effector_ID` must contain exactly one value.")
+  
+  # Which replicate is at max or min?
+  data$replicate <- as.factor(data$replicate)
+  scoring_df <- data |>
+    group_by(inducer_conc, effector_conc) |>
+    summarise(
+      max_val = max(RFUc, na.rm = TRUE),
+      min_val = min(RFUc, na.rm = TRUE),
+      reps_at_max = list(replicate[RFUc == max_val]),
+      reps_at_min = list(replicate[RFUc == min_val])
+    ) |>
+    ungroup() |>
+    mutate(
+      # Exclude occurrences where two replicates are equal.
+      unique_max = ifelse(lengths(reps_at_max) == 1, as.character(reps_at_max), NA),
+      unique_min = ifelse(lengths(reps_at_min) == 1, as.character(reps_at_min), NA)
+    ) |>
+    select(inducer_conc, effector_conc, unique_max, unique_min)
+  
+  # Count occurrences per replicate.
+  counts <- scoring_df |>
+    pivot_longer(
+      cols = c(unique_max, unique_min),
+      names_to = "type",
+      values_to = "replicate"
+    ) |>
+    filter(!is.na(replicate)) |>
+    group_by(type, replicate) |>
+    summarise(n = n()) |>
+    ungroup()
+  
+  # Convert to tidy output
+  out <- counts |>
+    pivot_wider(names_from = replicate, values_from = n, values_fill = 0) |>
+    mutate(type = recode(type, unique_max = "maximum", unique_min = "minimum"))
+  
+  out
+}
