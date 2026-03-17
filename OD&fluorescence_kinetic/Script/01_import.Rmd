@@ -18,6 +18,10 @@ library(data.table)
 source("../helpers.R")
 ```
 
+I usually organise my R projects as follows:
+
+* One separate folder for each experiment, e.g. 20260101_VCRA_projectX_experiment1.
+* Each experiment folder contains an `.Rproj` file at the root and `Data/`, `Script/`, and `Output/` subfolders.
 
 ```{r}
 current_dir <- getwd()
@@ -25,23 +29,20 @@ current_dir <- getwd()
 data_dir <- file.path(current_dir, "Data")
 output_dir <- file.path(current_dir, "Output")
 
-file_name <- "example_data"
+project_name <- basename(current_dir)
 ```
-Don't forget to change the file name!
 
 # Read in data
 ## OD
 
 ```{r}
 OD_values <- read_xlsx(
-  file.path(data_dir, paste("raw_data", "xlsx", sep = ".")),
+  file.path(data_dir, "raw_data.xlsx"),
   sheet = "Plate 1 - Sheet1",
   range = "B39:CU220" # You can read past the actual data, but make sure that you don't include any fluorescence values
 )
 
-
 OD_values <- na.omit(OD_values) # Remove the bottom rows containing NAs (if present) to strip the data frame to the right size
-OD_values <- format_time(OD_values)
 n_timepoints <- nrow(OD_values)
 
 head(OD_values)
@@ -52,29 +53,31 @@ Ensure that all data is included in the dataframe!
 
 ```{r}
 FL_values <- read_xlsx(
-  file.path(data_dir, paste("raw_data", "xlsx", sep = ".")),
+  file.path(data_dir, "raw_data.xlsx"),
   sheet = "Plate 1 - Sheet1",
   range = "B224:CU405" # You can read past the actual data, but make sure that you don't include the table below
 )
 
 FL_values <- na.omit(FL_values) # Remove the bottom rows containing NAs (if present) to strip the data frame to the right size
-FL_values <- format_time(FL_values)
 
 head(FL_values)
 ```
 Ensure that all data is included in the data frame!
 
-# Read in template design 96-well plate
+# Read in template design
+Sometimes, we don't use the entire microplate. There are two ways to deal with this situation:
+
+* Don't fill in unused rows or columns in the template.csv file. Any corresponding measurements in `OD_values` or `FL_values` are left out automatically. This strategy only works if the used wells are shaped as a rectangle.
+* Label the unused wells as "blank" in the template.csv file. At the end of the script, remove data labelled as "blank".
 
 ```{r}
 template <- read.csv(
   file.path(data_dir, "template.csv"),
   header = FALSE,
-  skip = 1 # removes the first row
+  skip = 1
 )
-template[1] <- NULL # removes the first column
+template[1] <- NULL
 
-# These variables will save your butt if you didn't fill the entire plate
 n_plate_cols <- ncol(template)
 n_plate_rows <- nrow(template)
 n_plate_wells <- n_plate_rows * n_plate_cols
@@ -85,9 +88,9 @@ colnames(template) <- seq(1:n_plate_cols)
 
 # Building the big data frame
 `data` contains the data in long format: one row per well, per time point.
-That is, `r n_timepoints * n_plate_wells` rows in total.
+That is `r n_timepoints * n_plate_wells` rows in total.
 
-## Plate layout: data frame of 96 rows
+## Plate layout
 We start by constructing a small data frame `p` containing the plate layout, consisting of `r n_plate_wells` rows.
 This information is collected from the 'template.csv' file in the Data folder.
 
@@ -130,15 +133,20 @@ p <- reorder_factor_column(p, "effector_conc")
 ```
 
 ## Adding all the information together
-Now, we loop over `data` row by row and add the corresponding data from `OD_values` and `FL_values` to it.
+Now, we initialise a data frame `data` and iterate it row by row to add the corresponding data from `OD_values` and `FL_values` to it.
 ```{r}
+temperatures <- FL_values |>
+  select(starts_with("T°")) |>
+  pull(1)
+
 # Transfer metadata from `p` to `data`
 data <- data.frame(
-  time = rep(OD_values$time_h, each = n_plate_wells),
-  sample = rep(seq(1, n_timepoints), each = n_plate_wells),
-  well = rep(seq(1, n_plate_wells), times = n_timepoints),
+  cycle = rep(seq(1, n_timepoints), each = n_plate_wells),
+  time = rep(format_time(FL_values$Time), each = n_plate_wells),
+  well = rep(generate_well_ids(n_plate_rows, n_plate_cols), times = n_timepoints),
   row = rep(p$row, times = n_timepoints),
   col = rep(p$col, times = n_timepoints),
+  temperature = rep(temperatures, each = n_plate_wells), # Temperature is only measured twice per cycle (once for OD, once for fluorescence)
   strain = rep(p$strain, times = n_timepoints),
   inducer_ID = rep(p$inducer_ID, times = n_timepoints),
   inducer_conc = rep(p$inducer_conc, times = n_timepoints),
@@ -148,40 +156,31 @@ data <- data.frame(
 )
 head(data)
 
-# Drop columns that don't contain actual measurements.
-# OD_values <- select(OD_values, A1:H12) # If you used all 96 wells, use this line instead
-OD_values <- select(
-  OD_values,
-  !ends_with(as.character(8:12)),
-  -"Time", -"T° OD600:600", -"time_h"
-)
-
-# FL_values <- select(FL_values, A1:H12) # If you used all 96 wells, use this line instead
-FL_values <- select(
-  FL_values,
-  !ends_with(as.character(8:12)),
-  -"Time", -"T° mKate2:588,633", -"time_h"
-)
-
 for (r in 1:nrow(data)) {
-  # Where to look in the plate reader data:
-  x <- data[r, "well"]
-  y <- data[r, "sample"]
+  # Where to look in the plate reader data (here "row" means dataframe row):
+  row <- data[r, "cycle"]
+  col <- data[r, "well"]
 
   # Add the matching OD and fluorescence values to `data`
-  data[r, "OD"] <- as.double(sub(",", ".", OD_values[y, x])) # Replace commas with decimal points
-  data[r, "FL"] <- as.integer(FL_values[y, x])
+  data[r, "OD"] <- as.double(sub(",", ".", OD_values[row, col])) # Replace commas with decimal points
+  data[r, "FL"] <- as.integer(FL_values[row, col])
 }
 head(data)
+```
 
-# Remove rows with oversaturation
+## Clean up data
+
+```{r}
+# Print rows with NAs (most likely because of oversaturation in fluorescence channel)
 print(which(is.na(data), arr.ind = TRUE))
-data <- na.omit(data)
+
+# Uncomment this line to remove rows with NAs
+# data <- na.omit(data)
 ```
 
 # Write and save data file
 
 ```{r}
-save(data, file_name, file = file.path(output_dir, "01_import.RData"))
-fwrite(data, file.path(output_dir, paste(file_name, "processed.csv", sep = "_")))
+save(data, project_name, file = file.path(output_dir, "01_import.RData"))
+fwrite(data, file.path(output_dir, paste(project_name, "processed.csv", sep = "_")))
 ```

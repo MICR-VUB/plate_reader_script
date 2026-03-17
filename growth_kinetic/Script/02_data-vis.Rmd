@@ -16,10 +16,8 @@ library(tidyverse)
 ```
 
 
-
 ```{r}
 current_dir <- getwd()
-# print(current_dir)
 output_dir <- file.path(current_dir, "Output")
 
 load(file.path(output_dir, "01_import.RData"))
@@ -30,7 +28,12 @@ load(file.path(output_dir, "01_import.RData"))
 ```{r echo=FALSE, fig.height=10, fig.width=14}
 ggplot(data, aes(x = time, y = OD, color = fct_reorder2(strain, time, OD))) +
   geom_point(cex = 0.7) +
-  labs(color = "Strain")
+  expand_limits(y = 0) +
+  labs(
+    x = "Time (h)",
+    y = expression(OD[600]),
+    color = "Inoculum"
+  )
 ```
 
 ## Only medium
@@ -40,7 +43,13 @@ medium <- filter(data, strain == "medium")
 
 ggplot(medium, aes(x = time, y = OD, color = mol_conc, shape = replicate)) +
   geom_point(cex = 1) +
-  labs(color = "3-HP concentration (mM)")
+  expand_limits(y = 0) +
+  labs(
+    x = "Time (h)",
+    y = expression(OD[600]),
+    color = "3-HP concentration (mM)",
+    shape = "Replicate"
+  )
 ```
 The medium does not seem contaminated.
 
@@ -51,20 +60,32 @@ no_medium <- filter(data, strain != "medium")
 
 ggplot(no_medium, aes(x = time, y = OD, color = fct_reorder2(strain, time, OD))) +
   geom_point(cex = 1) +
-  labs(color = "Inoculum")
+  expand_limits(y = 0) +
+  labs(
+    x = "Time (h)",
+    y = expression(OD[600]),
+    color = "Strain"
+  )
 ```
 
-# Check per E. coli strain
+# Check per *E. coli* strain
 ```{r}
 MG1655 <- filter(no_medium, strain == "MG1655")
 Ecoli_W <- filter(no_medium, strain == "W")
 ```
 
-## E. coli MG1655
+## *E. coli* MG1655
 
 ```{r echo=FALSE, fig.height=10, fig.width=14}
 ggplot(MG1655, aes(x = time, y = OD, shape = mol_ID, color = mol_conc)) +
-  geom_point(cex = 1)
+  geom_point(cex = 1) +
+  expand_limits(y = 0) +
+  labs(
+    x = "Time (h)",
+    y = expression(OD[600]),
+    color = "Concentration (mM)",
+    shape = "Added molecule"
+  )
 ```
 
 ```{r}
@@ -74,10 +95,17 @@ MG1655 |>
   distinct(mol_ID, mol_conc)
 ```
 
-## E. coli W
+## *E. coli* W
 
 ```{r echo=FALSE, fig.height=10, fig.width=14}
 ggplot(Ecoli_W, aes(x = time, y = OD, shape = mol_ID, color = mol_conc)) +
-  geom_point(cex = 1)
+  geom_point(cex = 1) +
+  expand_limits(y = 0) +
+  labs(
+    x = "Time (h)",
+    y = expression(OD[600]),
+    color = "Concentration (mM)",
+    shape = "Added molecule"
+  )
 ```
-The E. coli W strain didn't grow.
+The *E. coli* W strain didn't grow.

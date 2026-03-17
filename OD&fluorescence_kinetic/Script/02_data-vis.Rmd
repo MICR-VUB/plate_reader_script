@@ -18,10 +18,8 @@ source("../helpers.R")
 ```
 
 
-
 ```{r}
 current_dir <- getwd()
-# print(current_dir)
 output_dir <- file.path(current_dir, "Output")
 
 load(file.path(output_dir, "01_import.RData"))
@@ -40,13 +38,25 @@ no_medium <- filter(corrected_data, strain != "medium")
 ```{r echo=FALSE, fig.height=10, fig.width=14}
 p1 <- ggplot(corrected_data, aes(x = time, y = OD, color = fct_reorder2(strain, time, RFU))) +
   geom_point(cex = 0.7) +
-  labs(color = "Inoculum")
+  expand_limits(y = 0) +
+  labs(
+    x = "Time (h)",
+    color = "Inoculum"
+  )
 p2 <- ggplot(corrected_data, aes(x = time, y = FL, color = fct_reorder2(strain, time, RFU))) +
   geom_point(cex = 0.7) +
-  labs(color = "Inoculum")
+  expand_limits(y = 0) +
+  labs(
+    x = "Time (h)",
+    color = "Inoculum"
+  )
 p3 <- ggplot(corrected_data, aes(x = time, y = RFU, color = fct_reorder2(strain, time, RFU))) +
   geom_point(cex = 0.7) +
-  labs(color = "Inoculum")
+  expand_limits(y = 0) +
+  labs(
+    x = "Time (h)",
+    color = "Inoculum"
+  )
 
 wrap_plots(p1, p2, p3, ncol = 2)
 ```
@@ -59,7 +69,7 @@ top_plots <- lapply(
   make_plot,
   data = medium,
   cat_var = "inducer_conc"
-  )
+)
 
 # Check whether the mean OD and FL of the medium are elevated:
 med <- medium |>
@@ -71,10 +81,18 @@ med <- medium |>
   ungroup()
 plot_3 <- ggplot(med, aes(x = time, y = OD_med_t)) +
   geom_point(cex = 1) +
-  labs(y = "Average OD")
+  expand_limits(y = 0) +
+  labs(
+    x = "Time (h)",
+    y = "Average OD"
+  )
 plot_4 <- ggplot(med, aes(x = time, y = FL_med_t)) +
   geom_point(cex = 1) +
-  labs(y = "Average FL")
+  expand_limits(y = 0) +
+  labs(
+    x = "Time (h)",
+    y = "Average FL"
+  )
 
 wrap_plots(top_plots[[1]], top_plots[[2]], plot_3, plot_4)
 ```
@@ -88,7 +106,7 @@ plots <- lapply(
   make_plot,
   data = no_medium,
   cat_var = "inducer_conc"
-  )
+)
 wrap_plots(plots, nrow = 2)
 ```
 
@@ -103,7 +121,7 @@ plots <- lapply(
   make_plot,
   data = bs01_0,
   cat_var = "inducer_conc"
-  )
+)
 wrap_plots(plots, nrow = 2)
 
 plot_replicates_separately(bs01_0, num_replicates = 4, cat_var = "inducer_conc")
@@ -119,13 +137,12 @@ plots <- lapply(
   make_plot,
   data = bs01_0,
   cat_var = "inducer_conc"
-  )
+)
 wrap_plots(plots, nrow = 2)
 
 plot_replicates_separately(
   bs01_10,
   num_replicates = 4,
   cat_var = "inducer_conc"
-  )
+)
 ```
-

@@ -21,7 +21,6 @@ source("../helpers.R")
 
 ```{r}
 current_dir <- getwd()
-# print(current_dir)
 output_dir <- file.path(current_dir, "Output")
 
 load(file.path(output_dir, "01_import.RData"))
@@ -101,4 +100,3 @@ ggplot(stat_phase_reps, aes(effector_conc, RFUc, fill = replicate)) +
 ```{r}
 unique_max_or_min(stat_phase_reps)
 ```
-

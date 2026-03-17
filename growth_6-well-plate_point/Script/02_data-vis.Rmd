@@ -17,7 +17,6 @@ library(ggplot2)
 ```
 
 
-
 ```{r, include=FALSE}
 current_dir <- getwd()
 output_dir <- file.path(current_dir, "Output")

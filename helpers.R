@@ -1,22 +1,30 @@
 library(dplyr)
 library(ggplot2)
 
-#' Add hours since first time point
+#' Convert a time vector to hours since the first observation
 #'
-#' Adds a new column `time_h` to a data frame, representing the number of
-#'   hours passed since the first value in the `Time` column.
+#' Computes the elapsed time in hours relative to the first timestamp
+#' in a time vector. The function returns a numeric vector representing
+#' the difference between each time value and the first element.
 #'
-#' @param data A data frame with a POSIXct column named `Time`.
+#' @param time A vector of date-time values (e.g., `POSIXct`, `POSIXlt`, or
+#'   `Date`). The first element is used as the reference time.
 #'
-#' @return A data frame with an additional numeric column `time_h`.
+#' @return A numeric vector giving the elapsed time in hours since the
+#'   first timestamp.
 #'
 #' @examples
-#' data <- data.frame(Time = as.POSIXct(c("2024-01-01 08:00", "2024-01-01 10:30")))
-#' format_time(data)
+#' times <- as.POSIXct(c(
+#'   "2024-01-01 08:00:00",
+#'   "2024-01-01 10:30:00",
+#'   "2024-01-01 13:00:00"
+#' ))
 #'
-format_time <- function(data) {
-  data$time_h <- as.numeric(difftime(data$Time, data$Time[1], units = "hours"))
-  data
+#' format_time(times)
+#'
+#' @export
+format_time <- function(time) {
+  as.numeric(difftime(time, time[1], units = "hours"))
 }
 
 #' Reorder factor levels in a column based on numeric order
@@ -63,6 +71,30 @@ reorder_factor_column <- function(data, column_name) {
   )
   
   data
+}
+
+#' Generate well IDs for a microplate
+#'
+#' Creates standard microplate well identifiers such as A1, A2, ..., H12
+#' in row-wise order (A1–A12, B1–B12, ...). This format matches the typical
+#' layout used in plate maps for 96- or 384-well plates.
+#'
+#' @param n_rows Integer. Number of plate rows.
+#' @param n_cols Integer. Number of columns in the plate.
+#'
+#' @return A character vector of well identifiers of length `n_rows * n_cols`,
+#'   ordered row-wise (e.g., A1, A2, ..., A{n_cols}, B1, ...).
+#'
+#' @examples
+#' # Generate well IDs for a standard 96-well plate
+#' generate_well_ids(8, 12)
+#'
+#' # Generate well IDs for a 384-well plate
+#' generate_well_ids(16, 24)
+#'
+#' @export
+generate_well_ids <- function(n_rows, n_cols) {
+  paste0(gl(n_rows, n_cols, labels = LETTERS[1:n_rows]), 1:n_cols)
 }
 
 #' Subtract background signal from medium control
@@ -135,45 +167,63 @@ make_plot <- function(data, yvar, cat_var) {
   }
   
   ggplot(data, aes(x = time, y = .data[[yvar]], color = .data[[cat_var]])) +
-    geom_point(cex = 1)
+    geom_point(cex = 1) +
+    expand_limits(y = 0) +
+    labs(x = "Time (h)")
 }
 
 #' Plot multiple replicates separately with three response variables each
 #'
 #' This function filters the data per replicate and creates three plots
-#'   (`ODc`, `FLc`, and `RFU` vs. time, colour-coded by `cat_var`) for each,
-#'   arranged in a grid. The function loops over the specified number of
-#'   replicates and displays the plots with a title.
+#'   for each replicate, arranged in a grid. By default it plots the
+#'   corrected variables (`ODc`, `FLc`, and `RFUc`) vs. time, colour-coded
+#'   by `cat_var`. When `corrected = FALSE`, it plots the uncorrected
+#'   variables (`OD`, `FL`, and `RFU`) instead.
 #'
 #' @param data A data frame containing at least the columns `replicate`, `time`,
-#'   `ODc`, `FLc`, `RFU`, and the categorical variable specified by `cat_var`.
+#'   the categorical variable specified by `cat_var`, and either:
+#'   corrected columns `ODc`, `FLc`, `RFUc`, or uncorrected columns
+#'   `OD`, `FL`, `RFU`.
 #' @param num_replicates An integer specifying the number of replicates to plot.
 #' @param cat_var A string specifying the name of the categorical
 #'   variable to colour-code the data by.
+#' @param corrected A logical value indicating whether to plot corrected
+#'   variables (`TRUE`; default) or uncorrected variables (`FALSE`).
 #'
 #' @return This function is called for its side effects: it displays plots for
 #'   each replicate. It also returns `data` invisibly.
 #'
 #' @examples
 #' \dontrun{
-#' plot_replicates_separately(data, 4)
+#' plot_replicates_separately(data, 4, cat_var = "group")
+#' plot_replicates_separately(data, 4, cat_var = "group", corrected = FALSE)
 #' }
-plot_replicates_separately <- function(data, num_replicates, cat_var) {
-  for (i in 1:num_replicates) {
+plot_replicates_separately <- function(data, num_replicates, cat_var, corrected = TRUE) {
+  vars_to_plot <- if (corrected) {
+    c("ODc", "FLc", "RFUc")
+  } else {
+    c("OD", "FL", "RFU")
+  }
+  
+  for (i in seq_len(num_replicates)) {
     data_loop <- filter(data, replicate == i)
+    
     plots <- lapply(
-      c("ODc", "FLc", "RFU"),
+      vars_to_plot,
       make_plot,
       data = data_loop,
       cat_var = cat_var
     )
+    
     grid <- patchwork::wrap_plots(plots, ncol = 2) +
       plot_annotation(
         title = paste("Replicate", i),
         theme = theme(plot.title = element_text(size = 14, face = "bold"))
       )
+    
     print(grid)
   }
+  
   invisible(data)
 }
 

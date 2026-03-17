@@ -17,8 +17,10 @@ library(dplyr)
 library(data.table)
 source("../helpers.R")
 ```
+I usually organise my R projects as follows:
 
-
+* One separate folder for each experiment, e.g. 20260101_VCRA_projectX_experiment1.
+* Each experiment folder contains an `.Rproj` file at the root and `Data/`, `Script/`, and `Output/` subfolders.
 
 ```{r}
 current_dir <- getwd()
@@ -26,7 +28,7 @@ current_dir <- getwd()
 data_dir <- file.path(current_dir, "Data")
 output_dir <- file.path(current_dir, "Output")
 
-file_name <- "example_data"
+project_name <- basename(current_dir)
 ```
 Don't forget to change the file name!
 
@@ -34,20 +36,23 @@ Don't forget to change the file name!
 
 ```{r}
 OD_values <- read_xlsx(
-  file.path(data_dir, paste(file_name, "xlsx", sep = ".")),
+  file.path(data_dir, "example_data.xlsx"),
   sheet = "Plate 1 - Sheet1",
-  range = "B30:CU211" # You can read past the actual data, but make sure that you don't include any fluorescence values
+  range = "B30:CU211" # You can read past the actual data, but make sure that you don't include the table below
 )
 
 OD_values <- na.omit(OD_values) # Remove the bottom rows containing NAs (if present) to strip the data frame to the right size
-OD_values <- format_time(OD_values)
 n_timepoints <- nrow(OD_values)
 
 head(OD_values)
 ```
-Ensure that all data is included in the data frame!
+Ensure that all data is included in the dataframe!
 
-# Read in template design 96-well plate
+# Read in template design
+Sometimes, we don't use the entire microplate. There are two ways to deal with this situation:
+
+* Don't fill in unused rows or columns in the template.csv file. Leave out corresponding measurements in `OD_values`. This strategy only works if the used wells are shaped as a rectangle.
+* Label the unused wells as "blank" in the template.csv file. At the end of the script, remove data labelled as "blank".
 
 ```{r}
 template <- read.csv(
@@ -57,7 +62,6 @@ template <- read.csv(
 )
 template[1] <- NULL
 
-# These variables will save your butt if you didn't fill the entire plate
 n_plate_cols <- ncol(template)
 n_plate_rows <- nrow(template)
 n_plate_wells <- n_plate_rows * n_plate_cols
@@ -70,7 +74,7 @@ colnames(template) <- seq(1:n_plate_cols)
 `data` contains the data in long format: one row per well, per time point.
 That is, `r n_timepoints * n_plate_wells` rows in total.
 
-## Plate layout: data frame of 96 rows
+## Plate layout
 We start by constructing a small data frame `p` containing the plate layout, consisting of `r n_plate_wells` rows.
 This information is collected from the 'template.csv' file in the Data folder.
 
@@ -107,13 +111,18 @@ p <- reorder_factor_column(p, "mol_conc")
 ## Adding all the information together
 Now, we loop over `data` row by row and add the corresponding data from `OD_values` to it.
 ```{r}
-# Transfer metadata from `p`
+temperatures <- OD_values |>
+  select(starts_with("T°")) |>
+  pull(1)
+
+# Transfer metadata from `p` to `data`
 data <- data.frame(
-  time = rep(OD_values$time_h, each = n_plate_wells),
-  sample = rep(seq(1, n_timepoints), each = n_plate_wells),
-  well = rep(seq(1, n_plate_wells), n_timepoints),
+  cycle = rep(seq(1, n_timepoints), each = n_plate_wells),
+  time = rep(format_time(OD_values$Time), each = n_plate_wells),
+  well = rep(generate_well_ids(n_plate_rows, n_plate_cols), times = n_timepoints),
   row = rep(p$row, n_timepoints),
   col = rep(p$col, n_timepoints),
+  temperature = rep(temperatures, each = n_plate_wells),  # Temperature is only measured once per cycle
   strain = rep(p$strain, n_timepoints),
   mol_ID = rep(p$mol_ID, n_timepoints),
   mol_conc = rep(p$mol_conc, n_timepoints),
@@ -121,16 +130,13 @@ data <- data.frame(
 )
 head(data)
 
-# Drop columns that don't contain actual measurements. Modify this range if you didn't use all 96 wells!!
-OD_values <- select(OD_values, A1:H12)
-
 for (r in 1:nrow(data)) {
-  # Where to look in the plate reader data:
-  x <- data[r, "well"]
-  y <- data[r, "sample"]
+  # Where to look in the plate reader data (here "row" means dataframe row):
+  row <- data[r, "cycle"]
+  col <- data[r, "well"]
 
   # Add the matching OD values to `data`
-  data[r, "OD"] <- as.double(sub(",", ".", OD_values[y, x])) # Replace commas with decimal points
+  data[r, "OD"] <- as.double(sub(",", ".", OD_values[[row, col]])) # Replace commas with decimal points
 }
 
 head(data)
@@ -139,6 +145,6 @@ head(data)
 # Write and save data file
 
 ```{r}
-save(data, file_name, file = file.path(output_dir, "01_import.RData"))
-fwrite(data, file.path(output_dir, paste(file_name, "processed.csv", sep = "_")))
+save(data, project_name, file = file.path(output_dir, "01_import.RData"))
+fwrite(data, file.path(output_dir, paste(project_name, "processed.csv", sep = "_")))
 ```

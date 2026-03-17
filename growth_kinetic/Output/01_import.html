@@ -352,19 +352,17 @@ display: none;
 <h1 class="title toc-ignore">Import and parse data</h1>
 <h4 class="author">Vincent Crabbe (adapted from Indra Bervoets &amp;
 Amber Bernauw)</h4>
-<h4 class="date">25/11/2025</h4>
+<h4 class="date">17/03/2026</h4>
 
 </div>
 
 <div id="TOC">
 <ul>
 <li><a href="#read-in-data" id="toc-read-in-data">Read in data</a></li>
-<li><a href="#read-in-template-design-96-well-plate" id="toc-read-in-template-design-96-well-plate">Read in template design
-96-well plate</a></li>
+<li><a href="#read-in-template-design" id="toc-read-in-template-design">Read in template design</a></li>
 <li><a href="#building-the-big-data-frame" id="toc-building-the-big-data-frame">Building the big data frame</a>
 <ul>
-<li><a href="#plate-layout-data-frame-of-96-rows" id="toc-plate-layout-data-frame-of-96-rows">Plate layout: data frame of
-96 rows</a></li>
+<li><a href="#plate-layout" id="toc-plate-layout">Plate layout</a></li>
 <li><a href="#adding-all-the-information-together" id="toc-adding-all-the-information-together">Adding all the information
 together</a></li>
 </ul></li>
@@ -372,27 +370,34 @@ together</a></li>
 </ul>
 </div>
 
+<p>I usually organise my R projects as follows:</p>
+<ul>
+<li>One separate folder for each experiment,
+e.g. 20260101_VCRA_projectX_experiment1.</li>
+<li>Each experiment folder contains an <code>.Rproj</code> file at the
+root and <code>Data/</code>, <code>Script/</code>, and
+<code>Output/</code> subfolders.</li>
+</ul>
 <pre class="r"><code>current_dir &lt;- getwd()
 # print(current_dir)
 data_dir &lt;- file.path(current_dir, &quot;Data&quot;)
 output_dir &lt;- file.path(current_dir, &quot;Output&quot;)
 
-file_name &lt;- &quot;example_data&quot;</code></pre>
+project_name &lt;- basename(current_dir)</code></pre>
 <p>Don’t forget to change the file name!</p>
 <div id="read-in-data" class="section level1">
 <h1>Read in data</h1>
 <pre class="r"><code>OD_values &lt;- read_xlsx(
-  file.path(data_dir, paste(file_name, &quot;xlsx&quot;, sep = &quot;.&quot;)),
+  file.path(data_dir, &quot;example_data.xlsx&quot;),
   sheet = &quot;Plate 1 - Sheet1&quot;,
-  range = &quot;B30:CU211&quot; # You can read past the actual data, but make sure that you don&#39;t include any fluorescence values
+  range = &quot;B30:CU211&quot; # You can read past the actual data, but make sure that you don&#39;t include the table below
 )
 
 OD_values &lt;- na.omit(OD_values) # Remove the bottom rows containing NAs (if present) to strip the data frame to the right size
-OD_values &lt;- format_time(OD_values)
 n_timepoints &lt;- nrow(OD_values)
 
 head(OD_values)</code></pre>
-<pre><code>## # A tibble: 6 × 99
+<pre><code>## # A tibble: 6 × 98
 ##   Time                `T° OD600:600`    A1    A2    A3    A4    A5    A6    A7
 ##   &lt;dttm&gt;                       &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
 ## 1 1899-12-31 00:19:10           30   0.145 0.142 0.158 0.167 0.147 0.145 0.155
@@ -401,17 +406,26 @@ head(OD_values)</code></pre>
 ## 4 1899-12-31 01:19:10           30   0.144 0.141 0.158 0.167 0.147 0.144 0.153
 ## 5 1899-12-31 01:39:10           30.1 0.143 0.141 0.157 0.166 0.146 0.144 0.152
 ## 6 1899-12-31 01:59:10           30.1 0.143 0.141 0.157 0.166 0.146 0.144 0.152
-## # ℹ 90 more variables: A8 &lt;dbl&gt;, A9 &lt;dbl&gt;, A10 &lt;dbl&gt;, A11 &lt;dbl&gt;, A12 &lt;dbl&gt;,
+## # ℹ 89 more variables: A8 &lt;dbl&gt;, A9 &lt;dbl&gt;, A10 &lt;dbl&gt;, A11 &lt;dbl&gt;, A12 &lt;dbl&gt;,
 ## #   B1 &lt;dbl&gt;, B2 &lt;dbl&gt;, B3 &lt;dbl&gt;, B4 &lt;dbl&gt;, B5 &lt;dbl&gt;, B6 &lt;dbl&gt;, B7 &lt;dbl&gt;,
 ## #   B8 &lt;dbl&gt;, B9 &lt;dbl&gt;, B10 &lt;dbl&gt;, B11 &lt;dbl&gt;, B12 &lt;dbl&gt;, C1 &lt;dbl&gt;, C2 &lt;dbl&gt;,
 ## #   C3 &lt;dbl&gt;, C4 &lt;dbl&gt;, C5 &lt;dbl&gt;, C6 &lt;dbl&gt;, C7 &lt;dbl&gt;, C8 &lt;dbl&gt;, C9 &lt;dbl&gt;,
 ## #   C10 &lt;dbl&gt;, C11 &lt;dbl&gt;, C12 &lt;dbl&gt;, D1 &lt;dbl&gt;, D2 &lt;dbl&gt;, D3 &lt;dbl&gt;, D4 &lt;dbl&gt;,
 ## #   D5 &lt;dbl&gt;, D6 &lt;dbl&gt;, D7 &lt;dbl&gt;, D8 &lt;dbl&gt;, D9 &lt;dbl&gt;, D10 &lt;dbl&gt;, D11 &lt;dbl&gt;,
 ## #   D12 &lt;dbl&gt;, E1 &lt;dbl&gt;, E2 &lt;dbl&gt;, E3 &lt;dbl&gt;, E4 &lt;dbl&gt;, E5 &lt;dbl&gt;, E6 &lt;dbl&gt;, …</code></pre>
-<p>Ensure that all data is included in the data frame!</p>
+<p>Ensure that all data is included in the dataframe!</p>
 </div>
-<div id="read-in-template-design-96-well-plate" class="section level1">
-<h1>Read in template design 96-well plate</h1>
+<div id="read-in-template-design" class="section level1">
+<h1>Read in template design</h1>
+<p>Sometimes, we don’t use the entire microplate. There are two ways to
+deal with this situation:</p>
+<ul>
+<li>Don’t fill in unused rows or columns in the template.csv file. Leave
+out corresponding measurements in <code>OD_values</code>. This strategy
+only works if the used wells are shaped as a rectangle.</li>
+<li>Label the unused wells as “blank” in the template.csv file. At the
+end of the script, remove data labelled as “blank”.</li>
+</ul>
 <pre class="r"><code>template &lt;- read.csv(
   file.path(data_dir, &quot;template.csv&quot;),
   header = FALSE,
@@ -419,7 +433,6 @@ head(OD_values)</code></pre>
 )
 template[1] &lt;- NULL
 
-# These variables will save your butt if you didn&#39;t fill the entire plate
 n_plate_cols &lt;- ncol(template)
 n_plate_rows &lt;- nrow(template)
 n_plate_wells &lt;- n_plate_rows * n_plate_cols
@@ -431,8 +444,8 @@ colnames(template) &lt;- seq(1:n_plate_cols)</code></pre>
 <h1>Building the big data frame</h1>
 <p><code>data</code> contains the data in long format: one row per well,
 per time point. That is, 11808 rows in total.</p>
-<div id="plate-layout-data-frame-of-96-rows" class="section level2">
-<h2>Plate layout: data frame of 96 rows</h2>
+<div id="plate-layout" class="section level2">
+<h2>Plate layout</h2>
 <p>We start by constructing a small data frame <code>p</code> containing
 the plate layout, consisting of 96 rows. This information is collected
 from the ‘template.csv’ file in the Data folder.</p>
@@ -468,52 +481,54 @@ p &lt;- reorder_factor_column(p, &quot;mol_conc&quot;)</code></pre>
 <h2>Adding all the information together</h2>
 <p>Now, we loop over <code>data</code> row by row and add the
 corresponding data from <code>OD_values</code> to it.</p>
-<pre class="r"><code># Transfer metadata from `p`
+<pre class="r"><code>temperatures &lt;- OD_values |&gt;
+  select(starts_with(&quot;T°&quot;)) |&gt;
+  pull(1)
+
+# Transfer metadata from `p` to `data`
 data &lt;- data.frame(
-  time = rep(OD_values$time_h, each = n_plate_wells),
-  sample = rep(seq(1, n_timepoints), each = n_plate_wells),
-  well = rep(seq(1, n_plate_wells), n_timepoints),
+  cycle = rep(seq(1, n_timepoints), each = n_plate_wells),
+  time = rep(format_time(OD_values$Time), each = n_plate_wells),
+  well = rep(generate_well_ids(n_plate_rows, n_plate_cols), times = n_timepoints),
   row = rep(p$row, n_timepoints),
   col = rep(p$col, n_timepoints),
+  temperature = rep(temperatures, each = n_plate_wells),  # Temperature is only measured once per cycle
   strain = rep(p$strain, n_timepoints),
   mol_ID = rep(p$mol_ID, n_timepoints),
   mol_conc = rep(p$mol_conc, n_timepoints),
   replicate = rep(p$replicate, n_timepoints)
 )
 head(data)</code></pre>
-<pre><code>##   time sample well row col strain mol_ID mol_conc replicate
-## 1    0      1    1   1   1      W   None        0         1
-## 2    0      1    2   1   2      W   3-HP      300         1
-## 3    0      1    3   1   3      W   3-HP      200         1
-## 4    0      1    4   1   4      W   3-HP      100         1
-## 5    0      1    5   1   5      W   3-HP       40         1
-## 6    0      1    6   1   6      W   3-HP       20         1</code></pre>
-<pre class="r"><code># Drop columns that don&#39;t contain actual measurements. Modify this range if you didn&#39;t use all 96 wells!!
-OD_values &lt;- select(OD_values, A1:H12)
-
-for (r in 1:nrow(data)) {
-  # Where to look in the plate reader data:
-  x &lt;- data[r, &quot;well&quot;]
-  y &lt;- data[r, &quot;sample&quot;]
+<pre><code>##   cycle time well row col temperature strain mol_ID mol_conc replicate
+## 1     1    0   A1   1   1          30      W   None        0         1
+## 2     1    0   A2   1   2          30      W   3-HP      300         1
+## 3     1    0   A3   1   3          30      W   3-HP      200         1
+## 4     1    0   A4   1   4          30      W   3-HP      100         1
+## 5     1    0   A5   1   5          30      W   3-HP       40         1
+## 6     1    0   A6   1   6          30      W   3-HP       20         1</code></pre>
+<pre class="r"><code>for (r in 1:nrow(data)) {
+  # Where to look in the plate reader data (here &quot;row&quot; means dataframe row):
+  row &lt;- data[r, &quot;cycle&quot;]
+  col &lt;- data[r, &quot;well&quot;]
 
   # Add the matching OD values to `data`
-  data[r, &quot;OD&quot;] &lt;- as.double(sub(&quot;,&quot;, &quot;.&quot;, OD_values[y, x])) # Replace commas with decimal points
+  data[r, &quot;OD&quot;] &lt;- as.double(sub(&quot;,&quot;, &quot;.&quot;, OD_values[[row, col]])) # Replace commas with decimal points
 }
 
 head(data)</code></pre>
-<pre><code>##   time sample well row col strain mol_ID mol_conc replicate    OD
-## 1    0      1    1   1   1      W   None        0         1 0.145
-## 2    0      1    2   1   2      W   3-HP      300         1 0.142
-## 3    0      1    3   1   3      W   3-HP      200         1 0.158
-## 4    0      1    4   1   4      W   3-HP      100         1 0.167
-## 5    0      1    5   1   5      W   3-HP       40         1 0.147
-## 6    0      1    6   1   6      W   3-HP       20         1 0.145</code></pre>
+<pre><code>##   cycle time well row col temperature strain mol_ID mol_conc replicate    OD
+## 1     1    0   A1   1   1          30      W   None        0         1 0.145
+## 2     1    0   A2   1   2          30      W   3-HP      300         1 0.142
+## 3     1    0   A3   1   3          30      W   3-HP      200         1 0.158
+## 4     1    0   A4   1   4          30      W   3-HP      100         1 0.167
+## 5     1    0   A5   1   5          30      W   3-HP       40         1 0.147
+## 6     1    0   A6   1   6          30      W   3-HP       20         1 0.145</code></pre>
 </div>
 </div>
 <div id="write-and-save-data-file" class="section level1">
 <h1>Write and save data file</h1>
-<pre class="r"><code>save(data, file_name, file = file.path(output_dir, &quot;01_import.RData&quot;))
-fwrite(data, file.path(output_dir, paste(file_name, &quot;processed.csv&quot;, sep = &quot;_&quot;)))</code></pre>
+<pre class="r"><code>save(data, project_name, file = file.path(output_dir, &quot;01_import.RData&quot;))
+fwrite(data, file.path(output_dir, paste(project_name, &quot;processed.csv&quot;, sep = &quot;_&quot;)))</code></pre>
 </div>
 
 

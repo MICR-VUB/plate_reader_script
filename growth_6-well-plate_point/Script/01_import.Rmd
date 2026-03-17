@@ -19,7 +19,6 @@ library(data.table)
 ```
 
 
-
 ```{r, include=FALSE}
 current_dir <- getwd()
 data_dir <- file.path(current_dir, "Data")
@@ -43,13 +42,13 @@ Don't forget to change the file name!
 #' @return A tibble with 6 rows.
 #'
 #' @examples
-#' if (requireNamespace("tibble", quietly = TRUE)){
-#' input_df <- data.frame(
-#'   X1 = c(0.1, 0.4),
-#'   X2 = c(0.2, 0.5),
-#'   X3 = c(0.3, 0.6)
-#' )
-#' reshape_df(input_df)
+#' if (requireNamespace("tibble", quietly = TRUE)) {
+#'   input_df <- data.frame(
+#'     X1 = c(0.1, 0.4),
+#'     X2 = c(0.2, 0.5),
+#'     X3 = c(0.3, 0.6)
+#'   )
+#'   reshape_df(input_df)
 #' }
 reshape_df <- function(input_df) {
   values <- as.vector(t(input_df))
@@ -159,15 +158,6 @@ parse_6well_plates <- function(file_path_to_data, num_experiments, timepoints) {
   # Add time
   no_blank <- add_column(no_blank, time_h = rep(timepoints, each = 6 * num_experiments))
 }
-```
-
-
-
-```{r, include=FALSE}
-# You can print the documentation of my functions in a pretty formatted fashion
-# using the `docstring` package. See example below.
-# library(docstring)
-# ?parse_6well_plates
 ```
 
 # Read in data
