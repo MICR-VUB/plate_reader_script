@@ -1,6 +1,6 @@
 # Analyse growth experiment
 
-This folder contains an R-based workflow for processing and visualising data from a simple growth experiment in a 96-well plate with supplementation of ligands of choice.
+This folder contains an R-based workflow for processing and visualising data from a simple growth experiment in a microplate with supplementation of ligands of choice. The scripts have been tested for 96-well plates, but should also be usable for other formats.
 
 ## Table of Contents
 
@@ -13,10 +13,10 @@ This folder contains an R-based workflow for processing and visualising data fro
 
 - The `.Rproj` file is located in the root directory and sets the working directory accordingly. **Do not move this file unless you know what you're doing.**
 - `Data/` contains all input files:
-  - A `.xlsx` file with raw OD (optical density) measurements.
+  - An `.xlsx` file with raw OD (optical density) measurements.
   - A `template.csv` file with metadata (e.g., treatment layout, ligand names, etc.).
-- `Script/` contains all the code the form of .Rmd files.
-- All output (e.g., processed data, plots, knitted reports) is saved to `Output/`.
+- `Script/` contains all the code in the form of .Rmd files.
+- All outputs (e.g., processed data, plots, knitted reports) are saved to `Output/`.
 
 ## Overview
 ### 1. Data Import (`01_import.Rmd`)
@@ -33,13 +33,13 @@ This folder contains an R-based workflow for processing and visualising data fro
 
 ## Requirements
 
-This script was tested using R version 4.4.3 and following package versions:
+This script was tested using R version 4.5.2 and following package versions:
 
 - `readxl (1.4.5)`
 - `dplyr (1.1.4)`
-- `data.table (1.17.0)`
-- `ggplot2 (3.5.2)`
-- `forcats (1.0.0)`
+- `data.table (1.17.8)`
+- `ggplot2 (4.0.1)`
+- `forcats (1.0.1)`
 
 ## Usage
 
