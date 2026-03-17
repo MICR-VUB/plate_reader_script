@@ -15,20 +15,20 @@ This project provides a set of functions to parse and process OD readings from 6
 
 ## Requirements
 
-This script was tested using R version 4.4.3 and following package versions:
+This script was tested using R version 4.5.2 and following package versions:
 
 - `readxl (1.4.5)`
-- `tibble (3.2.1)`
+- `tibble (3.3.0)`
 - `dplyr (1.1.4)`
-- `data.table (1.17.0)`
-- `ggplot2 (3.5.2)`
+- `data.table (1.17.8)`
+- `ggplot2 (4.0.1)`
 
 ## Folder Structure
 - The `.Rproj` file is located in the root directory and sets the working directory accordingly. **Don't move the .Rproj file unless you know what you're doing.**
 - `Data/` contains all input files:
   - The Excel file with raw OD measurements across multiple sheets.
 - `Script/` contains all the code the form of .Rmd files.
-- All output (e.g., processed data, plots, knitted reports) is saved to `Output/`.
+- All outputs (e.g., processed data, plots, knitted reports) are saved to `Output/`.
 
 ## Usage
 
